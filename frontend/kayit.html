@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kayıt Ol</title>
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('login-theme');
+            const systemTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme || systemTheme);
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <main class="login-container">
+        <section class="login-card" aria-labelledby="register-title">
+            <header class="login-header">
+                <div class="login-logo" aria-hidden="true">✦</div>
+                <h1 id="register-title">Hesap Oluştur</h1>
+                <p>Bilgilerinizi girerek kayıt olun.</p>
+            </header>
+
+            <form action="#" method="post" class="register-form" novalidate>
+                <div class="form-group">
+                    <label for="reg-nickname">Kullanıcı Adı (Arkadaşlık için)</label>
+                    <input type="text" id="reg-nickname" class="username-input" placeholder="Ornek: umut_ucar" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-username">E-posta Adresi</label>
+                    <input type="text" id="reg-username" class="username-input" placeholder="ornek@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-password">Şifre</label>
+                    <input type="password" id="reg-password" class="password-input" placeholder="••••••••" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-confirm-password">Yeniden Şifre</label>
+                    <input type="password" id="reg-confirm-password" class="password-input" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="login-button" style="margin-top: 1rem;">Kayıt Ol</button>
+            </form>
+
+            <footer class="login-footer">
+                <span>Zaten hesabınız var mı?</span>
+                <a href="login.html">Giriş Yap</a>
+            </footer>
+        </section>
+    </main>
+
+    <script src="kayit.js"></script>
+</body>
+</html>
