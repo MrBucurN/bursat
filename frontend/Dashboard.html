@@ -82,14 +82,19 @@
                 
                 <form id="settings-form">
                     <div class="settings-field">
-                        <label class="settings-label">Profil Resmi Linki (URL)</label>
-                        <input type="text" id="set-avatar-url" class="message-input settings-input" placeholder="Örn: https://resim.linki/resim.jpg">
-                        <small class="settings-help">Boş bırakırsanız otomatik robot resmi atanır.</small>
+                        <label class="settings-label">Yeni Kullanıcı Adı</label>
+                        <input type="text" id="set-nickname" class="message-input settings-input" placeholder="Örn: umut_ucar" autocomplete="off">
+                        <small class="settings-help">Kullanıcı adını değiştirirseniz şifreniz istenir.</small>
                     </div>
 
                     <div class="settings-field">
                         <label class="settings-label">Durum Yazısı</label>
                         <input type="text" id="set-status-text" class="message-input settings-input" placeholder="Örn: Meşgul, Kod yazıyor...">
+                    </div>
+
+                    <div class="settings-field">
+                        <label class="settings-label">Şifre</label>
+                        <input type="password" id="set-password-confirm" class="message-input settings-input" placeholder="Kullanıcı adı değişikliği için şifreniz" autocomplete="current-password">
                     </div>
 
                     <div class="settings-actions">

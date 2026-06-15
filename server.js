@@ -121,15 +121,57 @@ app.get('/api/profil-getir/:eposta', (req, res) => {
 
 // Profil Güncelleme
 app.post('/api/profil-guncelle', (req, res) => {
-    const { eposta, avatar, status } = req.body;
+    const { eposta, avatar, status, nickname, password } = req.body;
     let kullanicilar = kullanicilariGetir();
     const indeks = kullanicilar.findIndex(k => k.username === eposta);
 
     if (indeks !== -1) {
-        kullanicilar[indeks].avatar = avatar;
-        kullanicilar[indeks].status = status;
+        const eskiNickname = kullanicilar[indeks].nickname || eposta.split('@')[0];
+        const yeniNickname = (nickname || eskiNickname).trim();
+        const nicknameDegisti = yeniNickname !== eskiNickname;
+
+        if (!yeniNickname) {
+            return res.json({ success: false, mesaj: "Kullanıcı adı boş bırakılamaz!" });
+        }
+
+        const nicknameAlinmis = kullanicilar.some((k, i) =>
+            i !== indeks &&
+            k.nickname &&
+            k.nickname.toLowerCase() === yeniNickname.toLowerCase()
+        );
+
+        if (nicknameAlinmis) {
+            return res.json({ success: false, mesaj: "Bu kullanıcı adı zaten alınmış! ❌" });
+        }
+
+        if (nicknameDegisti && (kullanicilar[indeks].password || '').trim() !== (password || '').trim()) {
+            return res.json({ success: false, mesaj: "Şifre hatalı, kullanıcı adı değiştirilemedi! ❌" });
+        }
+
+        kullanicilar[indeks].nickname = yeniNickname;
+        kullanicilar[indeks].status = (status || '').trim();
+        if (typeof avatar === 'string') {
+            kullanicilar[indeks].avatar = avatar;
+        }
         kullanicilariKaydet(kullanicilar);
-        res.json({ success: true, mesaj: "Profiliniz başarıyla güncellendi! 💾" });
+
+        if (nicknameDegisti) {
+            const arkadasliklar = arkadaslariGetir();
+            arkadasliklar.forEach(a => {
+                if (a.gonderen === eskiNickname) a.gonderen = yeniNickname;
+                if (a.alan === eskiNickname) a.alan = yeniNickname;
+            });
+            arkadaslariKaydet(arkadasliklar);
+
+            const tumMesajlar = mesajlariGetir();
+            tumMesajlar.forEach(m => {
+                if (m.fromNickname === eskiNickname) m.fromNickname = yeniNickname;
+                if (m.toNickname === eskiNickname) m.toNickname = yeniNickname;
+            });
+            mesajlariKaydet(tumMesajlar);
+        }
+
+        res.json({ success: true, mesaj: "Profiliniz başarıyla güncellendi! 💾", nickname: yeniNickname });
     } else {
         res.json({ success: false, mesaj: "Kullanıcı bulunamadı!" });
     }

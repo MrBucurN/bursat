@@ -11,6 +11,7 @@ logoutButton.addEventListener('click', () => {
 });
 
 let secilenAliciNickname = null;
+let mevcutNickname = '';
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -61,8 +62,10 @@ openSettingsBtn.addEventListener('click', () => {
     fetch(`/api/profil-getir/${aktifKullanici}`)
         .then(res => res.json())
         .then(data => {
-            document.getElementById('set-avatar-url').value = data.avatar || '';
+            mevcutNickname = data.nickname || aktifKullanici.split('@')[0];
+            document.getElementById('set-nickname').value = mevcutNickname;
             document.getElementById('set-status-text').value = data.status || '';
+            document.getElementById('set-password-confirm').value = '';
         });
 });
 
@@ -79,21 +82,36 @@ mobileBackBtn.addEventListener('click', () => {
 // PROFİL AYARLARINI KAYDETME
 settingsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const avatar = document.getElementById('set-avatar-url').value.trim();
+    const nickname = document.getElementById('set-nickname').value.trim();
     const status = document.getElementById('set-status-text').value.trim();
+    const password = document.getElementById('set-password-confirm').value.trim();
+
+    if (!nickname) {
+        alert("Kullanıcı adı boş bırakılamaz!");
+        return;
+    }
+
+    if (nickname !== mevcutNickname && !password) {
+        alert("Kullanıcı adını değiştirmek için şifrenizi girin!");
+        return;
+    }
 
     try {
         const response = await fetch('/api/profil-guncelle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eposta: aktifKullanici, avatar, status })
+            body: JSON.stringify({ eposta: aktifKullanici, nickname, status, password })
         });
         const data = await response.json();
         alert(data.mesaj);
-        settingsMainArea.style.display = 'none';
-        chatMainArea.style.display = 'flex';
-        listeEkraniniAc();
-        paneliGuncelle(); // Alt barı anında tazele
+
+        if (data.success) {
+            mevcutNickname = data.nickname || nickname;
+            settingsMainArea.style.display = 'none';
+            chatMainArea.style.display = 'flex';
+            listeEkraniniAc();
+            paneliGuncelle(); // Alt barı anında tazele
+        }
     } catch (error) {
         console.error("Profil güncellenemedi:", error);
     }
