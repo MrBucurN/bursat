@@ -6,6 +6,8 @@ body {
   align-items: center;
   background: var(--page-bg);
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
 }
 
 .bursat-container {
@@ -19,14 +21,17 @@ body {
   overflow: hidden;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  min-width: 0;
 }
 
 .sidebar {
   width: 350px;
+  flex: 0 0 350px;
   border-right: 1px solid var(--divider);
   display: flex;
   flex-direction: column;
   background: rgba(0, 0, 0, 0.03);
+  min-width: 0;
 }
 
 .sidebar-header {
@@ -40,7 +45,7 @@ body {
 .bursat-logo {
   font-size: 1.4rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -84,6 +89,7 @@ body {
 
 .friend-add-area input {
   flex: 1;
+  min-width: 0;
   padding: 0.6rem 1rem;
   border: 1px solid var(--input-border);
   border-radius: 10px;
@@ -239,13 +245,14 @@ body {
   opacity: 1;
 }
 
-.chat-info { flex: 1; overflow: hidden; }
+.chat-info { flex: 1; overflow: hidden; min-width: 0; }
 .chat-info-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
 .chat-name { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
 .chat-preview { font-size: 0.85rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 
-.chat-area { flex: 1; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.01); }
+.chat-area { flex: 1; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.01); min-width: 0; }
 .chat-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--divider); display: flex; align-items: center; gap: 1rem; background: var(--card-bg); }
+.chat-header-info { min-width: 0; }
 .chat-status { font-size: 0.8rem; color: var(--text-muted); }
 .messages-container { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
 
@@ -254,83 +261,318 @@ body {
 .message.outgoing { background: var(--button-bg); color: var(--button-text); align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
 
 .chat-input-area { padding: 1.25rem 1.5rem; border-top: 1px solid var(--divider); display: flex; gap: 1rem; align-items: center; background: var(--card-bg); }
-.message-input { flex: 1; padding: 0.95rem 1.25rem; border: 1px solid var(--input-border); border-radius: 999px; background: var(--input-bg); color: var(--input-text); font: inherit; outline: none; transition: all 0.2s ease; }
+.message-input { flex: 1; min-width: 0; padding: 0.95rem 1.25rem; border: 1px solid var(--input-border); border-radius: 999px; background: var(--input-bg); color: var(--input-text); font: inherit; outline: none; transition: all 0.2s ease; }
 .message-input:focus { border-color: var(--input-focus-border); background: var(--input-focus-bg); box-shadow: 0 0 0 3px var(--input-focus-ring); }
 
 .send-btn { background: var(--button-bg); color: var(--button-text); border: none; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: grid; place-items: center; transition: transform 0.2s ease, box-shadow 0.2s ease; flex-shrink: 0; }
 .send-btn:hover { transform: scale(1.05); box-shadow: var(--button-shadow); }
 
-/* --- TELEFONLAR İÇİN DÜZELTİLMİŞ SMART RESPONSIVE ALANI --- */
+.mobile-back-btn {
+  display: none;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.8rem;
+  line-height: 1;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 1rem;
+}
+
+.settings-area {
+  padding: 2.5rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.settings-card {
+  width: 100%;
+  max-width: 500px;
+  background: var(--input-bg);
+  padding: 2rem;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+}
+
+.settings-title {
+  margin: 0 0 1.5rem;
+  color: var(--text-primary);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.settings-label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-label);
+}
+
+.settings-input {
+  width: 100%;
+  border-radius: 10px;
+}
+
+.settings-help {
+  color: var(--text-muted);
+  display: block;
+  margin-top: -0.2rem;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.settings-save-btn,
+.settings-close-btn {
+  min-height: 42px;
+  border-radius: 12px;
+  padding: 0 1.5rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-save-btn {
+  border: none;
+  background: var(--button-bg);
+  color: var(--button-text);
+}
+
+.settings-close-btn {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+}
+
 @media (max-width: 768px) {
-  body { padding: 0; }
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
   
   .bursat-container { 
     width: 100%; 
     height: 100vh; 
+    height: 100dvh;
     border-radius: 0; 
     border: none; 
+    box-shadow: none;
+    position: relative;
   }
   
-  /* İkonlu sol menünün mobilde sıkışmaması için genişliği optimize ettik */
   .sidebar { 
-    width: 75px; 
+    width: 100%;
+    flex: 0 0 100%;
+    border-right: none;
+    background: var(--card-bg);
   }
-  
-  .chat-info, 
-  .sidebar-header .bursat-logo, 
-  .logout-btn, 
-  .friend-add-area, 
-  .requests-section, 
-  .chat-list-title, 
-  .sidebar-profile-footer { 
-    display: none !important; 
-  }
-  
+
   .sidebar-header { 
-    justify-content: center; 
-    padding: 1rem 0; 
+    padding: calc(0.9rem + env(safe-area-inset-top)) 1rem 0.9rem;
+  }
+
+  .bursat-logo {
+    font-size: 1.25rem;
+  }
+
+  .logout-btn {
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+  }
+
+  .friend-add-area {
+    padding: 0.85rem 1rem;
+  }
+
+  .friend-add-area form {
+    gap: 0.45rem;
+  }
+
+  .friend-add-area input {
+    font-size: 16px;
+    padding: 0.72rem 0.85rem;
+  }
+
+  .friend-add-area button {
+    min-height: 43px;
+    flex-shrink: 0;
+  }
+
+  .requests-section {
+    padding: 0.85rem 1rem;
+  }
+
+  .request-item {
+    gap: 0.6rem;
+    flex-wrap: wrap;
   }
   
+  .chat-list-title {
+    padding: 0.9rem 1rem 0.35rem;
+  }
+
   .chat-list { 
-    padding: 0.4rem; 
+    padding: 0.4rem 0.75rem 1rem;
+    gap: 0.35rem;
   }
   
   .chat-item { 
-    justify-content: center; 
-    padding: 0.6rem; 
+    padding: 0.85rem;
+    gap: 0.85rem;
+    border-radius: 14px;
   }
 
-  /* MOBİLDE CHAT ALANININ DARALMASINI ÖNLEYEN DÜZELTMELER */
+  .avatar,
+  .avatar-img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .sidebar-profile-footer {
+    padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
+  }
+
+  .chat-area {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    width: 100%;
+    transform: translateX(100%);
+    transition: transform 0.24s ease;
+    pointer-events: none;
+    background: var(--card-bg);
+  }
+
+  .bursat-container.chat-is-open #chat-main-area,
+  .bursat-container.settings-is-open #settings-main-area {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  .bursat-container.settings-is-open #settings-main-area {
+    z-index: 3;
+  }
+
+  .bursat-container.chat-is-open .sidebar,
+  .bursat-container.settings-is-open .sidebar {
+    pointer-events: none;
+  }
+
+  .mobile-back-btn {
+    display: grid;
+  }
+
   .chat-header {
-    padding: 0.85rem 1rem;
-    gap: 0.75rem;
+    padding: calc(0.75rem + env(safe-area-inset-top)) 0.9rem 0.75rem;
+    gap: 0.65rem;
+  }
+
+  .chat-header-info,
+  .chat-header .chat-name,
+  .chat-header .chat-status {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .messages-container { 
-    padding: 1rem; 
+    padding: 0.9rem 0.9rem 1rem; 
     gap: 0.75rem;
   }
 
-  /* Eski kodda %60 olan sınırı %85 yaptık ki telefonda dikine incecik kalmasınlar */
   .message { 
-    max-width: 85%; 
-    padding: 0.7rem 1rem;
-    font-size: 0.9rem;
+    max-width: 86%; 
+    padding: 0.75rem 0.95rem;
+    font-size: 0.92rem;
+    border-radius: 16px;
   }
 
   .chat-input-area { 
-    padding: 0.85rem 1rem; 
-    gap: 0.75rem;
+    padding: 0.75rem 0.85rem calc(0.75rem + env(safe-area-inset-bottom)); 
+    gap: 0.55rem;
   }
 
   .message-input { 
-    padding: 0.75rem 1.15rem; 
-    font-size: 16px !important; /* Mobil tarayıcılarda klavye açılınca ekranın istemsizce zoom yapmasını önler */
+    padding: 0.78rem 1rem; 
+    font-size: 16px;
   }
 
   .send-btn { 
-    width: 42px; 
-    height: 42px; 
+    width: 44px; 
+    height: 44px; 
     font-size: 1rem;
+  }
+
+  .settings-area {
+    padding: calc(1rem + env(safe-area-inset-top)) 1rem calc(1rem + env(safe-area-inset-bottom));
+    justify-content: flex-start;
+    align-items: stretch;
+    overflow-y: auto;
+  }
+
+  .settings-card {
+    max-width: none;
+    margin: auto 0;
+    padding: 1.25rem;
+    border-radius: 18px;
+  }
+
+  .settings-title {
+    font-size: 1.35rem;
+  }
+
+  .settings-actions {
+    gap: 0.75rem;
+  }
+
+  .settings-save-btn,
+  .settings-close-btn {
+    flex: 1;
+    padding: 0 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .bursat-logo {
+    font-size: 1.15rem;
+  }
+
+  .bursat-logo span {
+    padding: 0.18rem 0.5rem;
+  }
+
+  .chat-item {
+    padding: 0.78rem;
+  }
+
+  .settings-actions {
+    flex-direction: column;
   }
 }

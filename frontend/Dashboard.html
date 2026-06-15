@@ -20,7 +20,7 @@
 </head>
 <body>
 
-    <div class="bursat-container">
+    <div class="bursat-container" id="bursat-container">
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="bursat-logo"><span>✦</span> Bursat</div>
@@ -55,9 +55,10 @@
 
         <main class="chat-area" id="chat-main-area">
             <div class="chat-header">
+                <button type="button" class="mobile-back-btn" id="mobile-back-btn" aria-label="Sohbet listesine dön">‹</button>
                 <img src="https://api.dicebear.com/7.x/bottts/svg?seed=placeholder" class="avatar-img" id="active-avatar-img" style="display:none;">
                 <div class="avatar" id="active-avatar">?</div>
-                <div>
+                <div class="chat-header-info">
                     <div class="chat-name" id="active-chat-title">Bir sohbet seçin</div>
                     <div class="chat-status" id="active-chat-status">Bursat Mesajlaşma</div>
                 </div>
@@ -75,25 +76,25 @@
             </form>
         </main>
 
-        <main class="chat-area" id="settings-main-area" style="display: none; padding: 2.5rem; justify-content: center; align-items: center;">
-            <div style="width: 100%; max-width: 500px; background: var(--input-bg); padding: 2rem; border-radius: 20px; border: 1px solid var(--card-border);">
-                <h2 style="margin-top: 0; margin-bottom: 1.5rem; color: var(--text-primary);">Profil Ayarları ⚙️</h2>
+        <main class="chat-area settings-area" id="settings-main-area" style="display: none;">
+            <div class="settings-card">
+                <h2 class="settings-title">Profil Ayarları ⚙️</h2>
                 
                 <form id="settings-form">
-                    <div class="form-group" style="margin-bottom: 1.25rem;">
-                        <label style="display:block; margin-bottom:0.5rem; font-weight:500; font-size:0.9rem;">Profil Resmi Linki (URL)</label>
-                        <input type="text" id="set-avatar-url" class="message-input" style="border-radius:10px; width:90%;" placeholder="Örn: https://resim.linki/resim.jpg">
-                        <small style="color:var(--text-muted); display:block; margin-top:0.25rem;">Boş bırakırsanız otomatik robot resmi atanır.</small>
+                    <div class="settings-field">
+                        <label class="settings-label">Profil Resmi Linki (URL)</label>
+                        <input type="text" id="set-avatar-url" class="message-input settings-input" placeholder="Örn: https://resim.linki/resim.jpg">
+                        <small class="settings-help">Boş bırakırsanız otomatik robot resmi atanır.</small>
                     </div>
 
-                    <div class="form-group" style="margin-bottom: 1.5rem;">
-                        <label style="display:block; margin-bottom:0.5rem; font-weight:500; font-size:0.9rem;">Durum Yazısı</label>
-                        <input type="text" id="set-status-text" class="message-input" style="border-radius:10px; width:90%;" placeholder="Örn: Meşgul, Kod yazıyor...">
+                    <div class="settings-field">
+                        <label class="settings-label">Durum Yazısı</label>
+                        <input type="text" id="set-status-text" class="message-input settings-input" placeholder="Örn: Meşgul, Kod yazıyor...">
                     </div>
 
-                    <div style="display:flex; gap:1rem;">
-                        <button type="submit" class="send-btn" style="width:auto; border-radius:12px; padding:0 1.5rem; font-size:0.9rem; height:42px;">Kaydet</button>
-                        <button type="button" id="close-settings-btn" class="logout-btn" style="border-radius:12px; padding:0 1.5rem; font-size:0.9rem; height:42px;">Kapat</button>
+                    <div class="settings-actions">
+                        <button type="submit" class="settings-save-btn">Kaydet</button>
+                        <button type="button" id="close-settings-btn" class="settings-close-btn">Kapat</button>
                     </div>
                 </form>
             </div>

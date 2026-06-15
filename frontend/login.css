@@ -84,6 +84,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 body {
@@ -153,7 +154,7 @@ body {
   transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
-.login-header h1 { margin: 0 0 0.5rem; font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); }
+.login-header h1 { margin: 0 0 0.5rem; font-size: 2rem; font-weight: 700; letter-spacing: 0; color: var(--text-primary); }
 .login-header p { margin: 0; color: var(--text-secondary); line-height: 1.6; font-size: 0.98rem; }
 .login-form, .register-form { display: flex; flex-direction: column; }
 .form-group { display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: 1.15rem; }
@@ -207,7 +208,18 @@ body {
   body { padding: 1rem; }
   .theme-toggle { top: 1rem; right: 1rem; padding: 0.7rem 0.85rem; padding-left: 2.35rem; }
   .theme-toggle__text { display: none; }
-  .login-card { padding: 1.5rem; border-radius: 22px; }
-  .login-header h1 { font-size: 1.75rem; }
+  .login-container { width: 100%; }
+  .login-card { padding: 1.35rem; border-radius: 22px; }
+  .login-header { margin-bottom: 1.5rem; }
+  .login-logo { width: 3rem; height: 3rem; margin-bottom: 1rem; border-radius: 16px; }
+  .login-header h1 { font-size: 1.65rem; }
+  .username-input, .password-input { font-size: 16px; }
   .form-options { flex-direction: column; align-items: flex-start; }
+  .login-footer { flex-wrap: wrap; text-align: center; line-height: 1.45; }
+}
+
+@media (max-width: 380px) {
+  .login-card { padding: 1.15rem; }
+  .login-header p { font-size: 0.92rem; }
+  .login-button { padding: 0.9rem 1rem; }
 }

@@ -13,6 +13,7 @@ logoutButton.addEventListener('click', () => {
 let secilenAliciNickname = null;
 
 // DOM Elemanları
+const bursatContainer = document.getElementById('bursat-container');
 const friendForm = document.getElementById('friend-form');
 const friendInput = document.getElementById('friend-username-input');
 const requestsBox = document.getElementById('requests-box');
@@ -23,6 +24,7 @@ const chatMainArea = document.getElementById('chat-main-area');
 const settingsMainArea = document.getElementById('settings-main-area');
 const openSettingsBtn = document.getElementById('open-settings-btn');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
+const mobileBackBtn = document.getElementById('mobile-back-btn');
 const settingsForm = document.getElementById('settings-form');
 
 const activeChatTitle = document.getElementById('active-chat-title');
@@ -34,10 +36,27 @@ const messagesBox = document.getElementById('messages-box');
 const chatForm = document.getElementById('chat-form');
 const msgInput = document.getElementById('msg-input');
 
-// --- PANELLER ARASI GEÇİŞ (AYARLAR MANTIĞI) ---
-openSettingsBtn.addEventListener('click', () => {
+function listeEkraniniAc() {
+    bursatContainer.classList.remove('chat-is-open', 'settings-is-open');
+}
+
+function sohbetEkraniniAc() {
+    settingsMainArea.style.display = 'none';
+    chatMainArea.style.display = 'flex';
+    bursatContainer.classList.remove('settings-is-open');
+    bursatContainer.classList.add('chat-is-open');
+}
+
+function ayarlarEkraniniAc() {
     chatMainArea.style.display = 'none';
     settingsMainArea.style.display = 'flex';
+    bursatContainer.classList.remove('chat-is-open');
+    bursatContainer.classList.add('settings-is-open');
+}
+
+// --- PANELLER ARASI GEÇİŞ (AYARLAR MANTIĞI) ---
+openSettingsBtn.addEventListener('click', () => {
+    ayarlarEkraniniAc();
     // Mevcut profil verilerimizi kutucuklara dolduralım
     fetch(`/api/profil-getir/${aktifKullanici}`)
         .then(res => res.json())
@@ -50,6 +69,11 @@ openSettingsBtn.addEventListener('click', () => {
 closeSettingsBtn.addEventListener('click', () => {
     settingsMainArea.style.display = 'none';
     chatMainArea.style.display = 'flex';
+    listeEkraniniAc();
+});
+
+mobileBackBtn.addEventListener('click', () => {
+    listeEkraniniAc();
 });
 
 // PROFİL AYARLARINI KAYDETME
@@ -68,6 +92,7 @@ settingsForm.addEventListener('submit', async (e) => {
         alert(data.mesaj);
         settingsMainArea.style.display = 'none';
         chatMainArea.style.display = 'flex';
+        listeEkraniniAc();
         paneliGuncelle(); // Alt barı anında tazele
     } catch (error) {
         console.error("Profil güncellenemedi:", error);
@@ -133,6 +158,9 @@ async function paneliGuncelle() {
                     chatItem.addEventListener('click', () => {
                         if (secilenAliciNickname !== arkadas.nickname) {
                             sohbetiAc(arkadas.nickname, arkadas.avatar, arkadas.status, chatItem);
+                        } else {
+                            sohbetEkraniniAc();
+                            messagesBox.scrollTop = messagesBox.scrollHeight;
                         }
                     });
                     dynamicChatList.appendChild(chatItem);
@@ -147,7 +175,7 @@ async function paneliGuncelle() {
                 });
             }
         } else {
-            dynamicChatList.innerHTML = '<div style="font-size:0.85rem; color:var(--text-muted); padding:1rem;">Henüz hiç arkadaşınız yok. Üstten ekleyin!</div>';
+            dynamicChatList.innerHTML = '<div class="empty-state">Henüz hiç arkadaşınız yok. Üstten ekleyin!</div>';
         }
 
     } catch (error) {
@@ -219,6 +247,7 @@ async function sohbetiAc(arkadasNickname, avatar, status, eleman) {
 
     await mesajlariCanliGetir();
     messagesBox.scrollTop = messagesBox.scrollHeight;
+    sohbetEkraniniAc();
 }
 
 // --- 5. MESAJLARI CANLI GÖSTEREN ARKA PLAN MOTORU ---
