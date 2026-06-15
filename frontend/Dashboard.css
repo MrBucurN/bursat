@@ -173,7 +173,6 @@ body {
 .chat-item:hover { background: var(--input-bg); }
 .chat-item.active { background: var(--input-focus-bg); border: 1px solid var(--card-border); }
 
-/* YENİ VE GÜNCELLENMİŞ AVATAR STİLLERİ */
 .avatar {
   width: 48px;
   height: 48px;
@@ -195,7 +194,6 @@ body {
   flex-shrink: 0;
 }
 
-/* YENİ: Alt Sol Profil Kartı Çubuğu */
 .sidebar-profile-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--divider);
@@ -262,11 +260,77 @@ body {
 .send-btn { background: var(--button-bg); color: var(--button-text); border: none; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: grid; place-items: center; transition: transform 0.2s ease, box-shadow 0.2s ease; flex-shrink: 0; }
 .send-btn:hover { transform: scale(1.05); box-shadow: var(--button-shadow); }
 
+/* --- TELEFONLAR İÇİN DÜZELTİLMİŞ SMART RESPONSIVE ALANI --- */
 @media (max-width: 768px) {
-  .bursat-container { width: 100%; height: 100vh; border-radius: 0; border: none; }
-  .sidebar { width: 85px; }
-  .chat-info, .sidebar-header .bursat-logo, .logout-btn, .friend-add-area, .requests-section, .chat-list-title, .sidebar-profile-footer { display: none !important; }
-  .sidebar-header { justify-content: center; padding: 1rem 0; }
-  .chat-list { padding: 0.5rem; }
-  .chat-item { justify-content: center; padding: 0.75rem; }
+  body { padding: 0; }
+  
+  .bursat-container { 
+    width: 100%; 
+    height: 100vh; 
+    border-radius: 0; 
+    border: none; 
+  }
+  
+  /* İkonlu sol menünün mobilde sıkışmaması için genişliği optimize ettik */
+  .sidebar { 
+    width: 75px; 
+  }
+  
+  .chat-info, 
+  .sidebar-header .bursat-logo, 
+  .logout-btn, 
+  .friend-add-area, 
+  .requests-section, 
+  .chat-list-title, 
+  .sidebar-profile-footer { 
+    display: none !important; 
+  }
+  
+  .sidebar-header { 
+    justify-content: center; 
+    padding: 1rem 0; 
+  }
+  
+  .chat-list { 
+    padding: 0.4rem; 
+  }
+  
+  .chat-item { 
+    justify-content: center; 
+    padding: 0.6rem; 
+  }
+
+  /* MOBİLDE CHAT ALANININ DARALMASINI ÖNLEYEN DÜZELTMELER */
+  .chat-header {
+    padding: 0.85rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .messages-container { 
+    padding: 1rem; 
+    gap: 0.75rem;
+  }
+
+  /* Eski kodda %60 olan sınırı %85 yaptık ki telefonda dikine incecik kalmasınlar */
+  .message { 
+    max-width: 85%; 
+    padding: 0.7rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .chat-input-area { 
+    padding: 0.85rem 1rem; 
+    gap: 0.75rem;
+  }
+
+  .message-input { 
+    padding: 0.75rem 1.15rem; 
+    font-size: 16px !important; /* Mobil tarayıcılarda klavye açılınca ekranın istemsizce zoom yapmasını önler */
+  }
+
+  .send-btn { 
+    width: 42px; 
+    height: 42px; 
+    font-size: 1rem;
+  }
 }
