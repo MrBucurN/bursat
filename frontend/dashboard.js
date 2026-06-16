@@ -13,6 +13,7 @@ logoutButton.addEventListener('click', () => {
 let secilenAliciNickname = null;
 let mevcutNickname = '';
 let secilenAvatar = '';
+let secilenMesajResmi = '';
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -30,6 +31,7 @@ const mobileBackBtn = document.getElementById('mobile-back-btn');
 const settingsForm = document.getElementById('settings-form');
 const avatarFileInput = document.getElementById('set-avatar-file');
 const avatarPreview = document.getElementById('set-avatar-preview');
+const chatImageInput = document.getElementById('chat-image-input');
 
 const activeChatTitle = document.getElementById('active-chat-title');
 const activeChatStatus = document.getElementById('active-chat-status');
@@ -66,6 +68,31 @@ function avatarOnizlemeGuncelle(src) {
         avatarPreview.removeAttribute('src');
         avatarPreview.style.display = 'none';
     }
+}
+
+function seciliMesajResmiYukle() {
+    const dosya = chatImageInput.files && chatImageInput.files[0];
+
+    if (!dosya) {
+        return Promise.resolve('');
+    }
+
+    if (!dosya.type.startsWith('image/')) {
+        alert('Lütfen bir resim dosyası seçin.');
+        chatImageInput.value = '';
+        secilenMesajResmi = '';
+        return Promise.resolve('');
+    }
+
+    return new Promise((resolve, reject) => {
+        const okuyucu = new FileReader();
+        okuyucu.onload = () => {
+            secilenMesajResmi = String(okuyucu.result || '');
+            resolve(secilenMesajResmi);
+        };
+        okuyucu.onerror = () => reject(new Error('Mesaj resmi okunamadı'));
+        okuyucu.readAsDataURL(dosya);
+    });
 }
 
 function seciliAvatarYukle() {
@@ -357,10 +384,7 @@ async function mesajlariCanliGetir() {
         if (mesajlar.length !== mevcutMesajSayisi) {
             messagesBox.innerHTML = '';
             mesajlar.forEach(m => {
-                const mesajBalonu = document.createElement('div');
-                mesajBalonu.className = `message ${m.from === aktifKullanici ? 'outgoing' : 'incoming'}`;
-                mesajBalonu.textContent = m.text;
-                messagesBox.appendChild(mesajBalonu);
+                messagesBox.appendChild(mesajBalonuOlustur(m));
             });
 
             if (kullaniciAsagidaMi) {
@@ -372,14 +396,52 @@ async function mesajlariCanliGetir() {
     }
 }
 
+function mesajBalonuOlustur(mesaj) {
+    const mesajBalonu = document.createElement('div');
+    mesajBalonu.className = `message ${mesaj.from === aktifKullanici ? 'outgoing' : 'incoming'}`;
+
+    if (mesaj.image) {
+        const imageEl = document.createElement('img');
+        imageEl.src = mesaj.image;
+        imageEl.alt = 'Gönderilen fotoğraf';
+        imageEl.className = 'message-image';
+        mesajBalonu.appendChild(imageEl);
+    }
+
+    if (mesaj.text) {
+        const textEl = document.createElement('div');
+        textEl.className = 'message-text';
+        textEl.textContent = mesaj.text;
+        mesajBalonu.appendChild(textEl);
+    }
+
+    return mesajBalonu;
+}
+
 // --- 6. MESAJ GÖNDERME ---
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const mesajMetni = msgInput.value.trim();
+    let mesajResmi = secilenMesajResmi;
 
-    if (!mesajMetni || !secilenAliciNickname) {
+    if (!secilenAliciNickname) {
         alert("Lütfen bir arkadaşınızı seçin!");
         return;
+    }
+
+    if (!mesajMetni && !(chatImageInput.files && chatImageInput.files[0])) {
+        alert("Lütfen bir mesaj yazın ya da fotoğraf seçin!");
+        return;
+    }
+
+    if (chatImageInput.files && chatImageInput.files[0] && !mesajResmi) {
+        try {
+            mesajResmi = await seciliMesajResmiYukle();
+        } catch (error) {
+            console.error('Mesaj resmi okunamadı:', error);
+            alert('Fotoğraf yüklenemedi. Lütfen tekrar deneyin.');
+            return;
+        }
     }
 
     try {
@@ -389,17 +451,17 @@ chatForm.addEventListener('submit', async (e) => {
             body: JSON.stringify({
                 fromEposta: aktifKullanici,
                 toNickname: secilenAliciNickname,
-                text: mesajMetni
+                text: mesajMetni,
+                image: mesajResmi
             })
         });
         const data = await response.json();
         if (data.success) {
-            const mesajBalonu = document.createElement('div');
-            mesajBalonu.className = 'message outgoing';
-            mesajBalonu.textContent = data.yeniMesaj.text;
-            messagesBox.appendChild(mesajBalonu);
+            messagesBox.appendChild(mesajBalonuOlustur(data.yeniMesaj));
             messagesBox.scrollTop = messagesBox.scrollHeight;
             msgInput.value = '';
+            chatImageInput.value = '';
+            secilenMesajResmi = '';
         }
     } catch (error) {
         console.error("Mesaj yollanamadı:", error);

@@ -39,6 +39,7 @@ const messageSchema = new mongoose.Schema({
     toEposta: String,
     toNickname: String,
     text: String,
+    image: { type: String, default: "" },
     time: String
 }, { timestamps: true });
 const Message = mongoose.model('Message', messageSchema);
@@ -296,7 +297,7 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
 // Güvenli Mesaj Gönderme
 app.post('/api/mesaj-gonder-v2', async (req, res) => {
     try {
-        const { fromEposta, toNickname, text } = req.body;
+        const { fromEposta, toNickname, text, image } = req.body;
         
         const ben = await User.findOne({ username: fromEposta });
         const alici = await User.findOne({ nickname: toNickname });
@@ -306,7 +307,8 @@ app.post('/api/mesaj-gonder-v2', async (req, res) => {
             fromNickname: ben ? ben.nickname : fromEposta.split('@')[0],
             toEposta: alici ? alici.username : "",
             toNickname: toNickname,
-            text: text,
+            text: text || "",
+            image: typeof image === 'string' ? image : "",
             time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
         });
 
