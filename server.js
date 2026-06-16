@@ -22,7 +22,7 @@ mongoose.connect(process.env.MONGO_URI)
 // --- VERİTABANI MODELLERİ (JSON Yerine Bunları Kullanacağız) ---
 
 // 1. Kullanıcı Modeli (Senin oluşturduğun models/User.js dosyasından çekiyoruz)
-const User = require('./models/User'); 
+const User = require('./models/user'); 
 
 // 2. Arkadaşlık Modeli (Direkt burada tanımlıyoruz)
 const friendshipSchema = new mongoose.Schema({
