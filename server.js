@@ -2,12 +2,42 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
+const uploadDir = path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // FRONTEND klasörünü kesin bir şekilde tanımlıyoruz
 app.use(express.static(path.join(__dirname, 'frontend')));
+app.use('/uploads', express.static(uploadDir));
 app.use(express.json({ limit: '15mb' }));
+
+const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadDir),
+    filename: (_req, file, cb) => {
+        const safeName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname).toLowerCase()}`;
+        cb(null, safeName);
+    }
+});
+
+const fileFilter = (_req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    } else {
+        cb(new Error('Sadece resim dosyaları kabul edilir.'));
+    }
+};
+
+const upload = multer({
+    storage,
+    fileFilter,
+    limits: { fileSize: 6 * 1024 * 1024 }
+});
 
 // Kök dizine (/) gidilince login.html'i zorla açmasını söylüyoruz
 app.get('/', (req, res) => {
@@ -120,10 +150,15 @@ app.get('/api/profil-getir/:eposta', async (req, res) => {
     }
 });
 
+function uploadedFileUrl(file) {
+    return file ? `/uploads/${file.filename}` : '';
+}
+
 // Profil Güncelleme
-app.post('/api/profil-guncelle', async (req, res) => {
+app.post('/api/profil-guncelle', upload.single('avatarImage'), async (req, res) => {
     try {
-        const { eposta, avatar, status, nickname, password } = req.body;
+        const { eposta, status, nickname, password } = req.body;
+        const avatar = uploadedFileUrl(req.file) || req.body.avatar || '';
         const kullanici = await User.findOne({ username: eposta });
 
         if (kullanici) {
@@ -149,7 +184,7 @@ app.post('/api/profil-guncelle', async (req, res) => {
             // Kullanıcıyı güncelle
             kullanici.nickname = yeniNickname;
             kullanici.status = (status || '').trim();
-            if (typeof avatar === 'string') kullanici.avatar = avatar;
+            if (typeof avatar === 'string' && avatar) kullanici.avatar = avatar;
             await kullanici.save();
 
             // Eğer nickname değiştiyse, arkadaşlıklardaki ve mesajlardaki eski nicknameleri de güncelle (MongoDB'nin gücü!)
@@ -295,9 +330,10 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
 });
 
 // Güvenli Mesaj Gönderme
-app.post('/api/mesaj-gonder-v2', async (req, res) => {
+app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res) => {
     try {
-        const { fromEposta, toNickname, text, image } = req.body;
+        const { fromEposta, toNickname, text } = req.body;
+        const image = uploadedFileUrl(req.file) || req.body.image || '';
         
         const ben = await User.findOne({ username: fromEposta });
         const alici = await User.findOne({ nickname: toNickname });
@@ -312,6 +348,22 @@ app.post('/api/mesaj-gonder-v2', async (req, res) => {
             time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
         });
 
+
+    app.use((err, req, res, next) => {
+        if (err instanceof multer.MulterError) {
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.json({ success: false, mesaj: 'Resim boyutu çok büyük. En fazla 6MB yükleyebilirsin.' });
+            }
+
+            return res.json({ success: false, mesaj: 'Dosya yüklenemedi.' });
+        }
+
+        if (err) {
+            return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
+        }
+
+        next();
+    });
         await yeniMesaj.save();
         res.json({ success: true, yeniMesaj });
     } catch (error) {

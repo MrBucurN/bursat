@@ -12,8 +12,8 @@ logoutButton.addEventListener('click', () => {
 
 let secilenAliciNickname = null;
 let mevcutNickname = '';
-let secilenAvatar = '';
-let secilenMesajResmi = '';
+let secilenAvatarDosyasi = null;
+let secilenMesajResmiDosyasi = null;
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -70,59 +70,11 @@ function avatarOnizlemeGuncelle(src) {
     }
 }
 
-function seciliMesajResmiYukle() {
-    const dosya = chatImageInput.files && chatImageInput.files[0];
-
-    if (!dosya) {
-        return Promise.resolve('');
-    }
-
-    if (!dosya.type.startsWith('image/')) {
-        alert('Lütfen bir resim dosyası seçin.');
-        chatImageInput.value = '';
-        secilenMesajResmi = '';
-        return Promise.resolve('');
-    }
-
-    return new Promise((resolve, reject) => {
-        const okuyucu = new FileReader();
-        okuyucu.onload = () => {
-            secilenMesajResmi = String(okuyucu.result || '');
-            resolve(secilenMesajResmi);
-        };
-        okuyucu.onerror = () => reject(new Error('Mesaj resmi okunamadı'));
-        okuyucu.readAsDataURL(dosya);
-    });
-}
-
-function seciliAvatarYukle() {
-    const dosya = avatarFileInput.files && avatarFileInput.files[0];
-
-    if (!dosya) {
-        return Promise.resolve(secilenAvatar);
-    }
-
-    if (secilenAvatar) {
-        return Promise.resolve(secilenAvatar);
-    }
-
-    return new Promise((resolve, reject) => {
-        const okuyucu = new FileReader();
-        okuyucu.onload = () => {
-            secilenAvatar = String(okuyucu.result || '');
-            avatarOnizlemeGuncelle(secilenAvatar);
-            resolve(secilenAvatar);
-        };
-        okuyucu.onerror = () => reject(new Error('Avatar okunamadı'));
-        okuyucu.readAsDataURL(dosya);
-    });
-}
-
 avatarFileInput.addEventListener('change', () => {
     const dosya = avatarFileInput.files && avatarFileInput.files[0];
 
     if (!dosya) {
-        secilenAvatar = '';
+        secilenAvatarDosyasi = null;
         avatarOnizlemeGuncelle('');
         return;
     }
@@ -130,17 +82,13 @@ avatarFileInput.addEventListener('change', () => {
     if (!dosya.type.startsWith('image/')) {
         alert('Lütfen bir resim dosyası seçin.');
         avatarFileInput.value = '';
-        secilenAvatar = '';
+        secilenAvatarDosyasi = null;
         avatarOnizlemeGuncelle('');
         return;
     }
 
-    const okuyucu = new FileReader();
-    okuyucu.onload = () => {
-        secilenAvatar = String(okuyucu.result || '');
-        avatarOnizlemeGuncelle(secilenAvatar);
-    };
-    okuyucu.readAsDataURL(dosya);
+    secilenAvatarDosyasi = dosya;
+    avatarOnizlemeGuncelle(URL.createObjectURL(dosya));
 });
 
 // --- PANELLER ARASI GEÇİŞ (AYARLAR MANTIĞI) ---
@@ -151,12 +99,12 @@ openSettingsBtn.addEventListener('click', () => {
         .then(res => res.json())
         .then(data => {
             mevcutNickname = data.nickname || aktifKullanici.split('@')[0];
-            secilenAvatar = data.avatar || '';
+            secilenAvatarDosyasi = null;
             document.getElementById('set-nickname').value = mevcutNickname;
             document.getElementById('set-status-text').value = data.status || '';
             document.getElementById('set-password-confirm').value = '';
             avatarFileInput.value = '';
-            avatarOnizlemeGuncelle(secilenAvatar);
+            avatarOnizlemeGuncelle(data.avatar || '');
         });
 });
 
@@ -176,7 +124,6 @@ settingsForm.addEventListener('submit', async (e) => {
     const nickname = document.getElementById('set-nickname').value.trim();
     const status = document.getElementById('set-status-text').value.trim();
     const password = document.getElementById('set-password-confirm').value.trim();
-    let avatar = secilenAvatar;
 
     if (!nickname) {
         alert("Kullanıcı adı boş bırakılamaz!");
@@ -188,27 +135,27 @@ settingsForm.addEventListener('submit', async (e) => {
         return;
     }
 
-    if (avatarFileInput.files && avatarFileInput.files[0] && !avatar) {
-        try {
-            avatar = await seciliAvatarYukle();
-        } catch (error) {
-            console.error('Avatar okunamadı:', error);
-            alert('Profil resmi okunamadı. Lütfen tekrar deneyin.');
-            return;
-        }
-    }
-
     try {
+        const formData = new FormData();
+        formData.append('eposta', aktifKullanici);
+        formData.append('nickname', nickname);
+        formData.append('status', status);
+        formData.append('password', password);
+
+        if (secilenAvatarDosyasi) {
+            formData.append('avatarImage', secilenAvatarDosyasi);
+        }
+
         const response = await fetch('/api/profil-guncelle', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eposta: aktifKullanici, nickname, status, password, avatar })
+            body: formData
         });
         const data = await response.json();
         alert(data.mesaj);
 
         if (data.success) {
             mevcutNickname = data.nickname || nickname;
+            secilenAvatarDosyasi = null;
             settingsMainArea.style.display = 'none';
             chatMainArea.style.display = 'flex';
             listeEkraniniAc();
@@ -422,7 +369,7 @@ function mesajBalonuOlustur(mesaj) {
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const mesajMetni = msgInput.value.trim();
-    let mesajResmi = secilenMesajResmi;
+    const dosyaSecili = chatImageInput.files && chatImageInput.files[0];
 
     if (!secilenAliciNickname) {
         alert("Lütfen bir arkadaşınızı seçin!");
@@ -434,26 +381,20 @@ chatForm.addEventListener('submit', async (e) => {
         return;
     }
 
-    if (chatImageInput.files && chatImageInput.files[0] && !mesajResmi) {
-        try {
-            mesajResmi = await seciliMesajResmiYukle();
-        } catch (error) {
-            console.error('Mesaj resmi okunamadı:', error);
-            alert('Fotoğraf yüklenemedi. Lütfen tekrar deneyin.');
-            return;
-        }
-    }
-
     try {
+        const formData = new FormData();
+        formData.append('fromEposta', aktifKullanici);
+        formData.append('toNickname', secilenAliciNickname);
+        formData.append('text', mesajMetni);
+
+        if (dosyaSecili) {
+            secilenMesajResmiDosyasi = dosyaSecili;
+            formData.append('messageImage', dosyaSecili);
+        }
+
         const response = await fetch('/api/mesaj-gonder-v2', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fromEposta: aktifKullanici,
-                toNickname: secilenAliciNickname,
-                text: mesajMetni,
-                image: mesajResmi
-            })
+            body: formData
         });
         const data = await response.json();
         if (data.success) {
@@ -461,7 +402,7 @@ chatForm.addEventListener('submit', async (e) => {
             messagesBox.scrollTop = messagesBox.scrollHeight;
             msgInput.value = '';
             chatImageInput.value = '';
-            secilenMesajResmi = '';
+            secilenMesajResmiDosyasi = null;
         }
     } catch (error) {
         console.error("Mesaj yollanamadı:", error);
