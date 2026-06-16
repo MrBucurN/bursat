@@ -12,6 +12,7 @@ logoutButton.addEventListener('click', () => {
 
 let secilenAliciNickname = null;
 let mevcutNickname = '';
+let secilenAvatar = '';
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -27,6 +28,8 @@ const openSettingsBtn = document.getElementById('open-settings-btn');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const mobileBackBtn = document.getElementById('mobile-back-btn');
 const settingsForm = document.getElementById('settings-form');
+const avatarFileInput = document.getElementById('set-avatar-file');
+const avatarPreview = document.getElementById('set-avatar-preview');
 
 const activeChatTitle = document.getElementById('active-chat-title');
 const activeChatStatus = document.getElementById('active-chat-status');
@@ -55,6 +58,41 @@ function ayarlarEkraniniAc() {
     bursatContainer.classList.add('settings-is-open');
 }
 
+function avatarOnizlemeGuncelle(src) {
+    if (src) {
+        avatarPreview.src = src;
+        avatarPreview.style.display = 'block';
+    } else {
+        avatarPreview.removeAttribute('src');
+        avatarPreview.style.display = 'none';
+    }
+}
+
+avatarFileInput.addEventListener('change', () => {
+    const dosya = avatarFileInput.files && avatarFileInput.files[0];
+
+    if (!dosya) {
+        secilenAvatar = '';
+        avatarOnizlemeGuncelle('');
+        return;
+    }
+
+    if (!dosya.type.startsWith('image/')) {
+        alert('Lütfen bir resim dosyası seçin.');
+        avatarFileInput.value = '';
+        secilenAvatar = '';
+        avatarOnizlemeGuncelle('');
+        return;
+    }
+
+    const okuyucu = new FileReader();
+    okuyucu.onload = () => {
+        secilenAvatar = String(okuyucu.result || '');
+        avatarOnizlemeGuncelle(secilenAvatar);
+    };
+    okuyucu.readAsDataURL(dosya);
+});
+
 // --- PANELLER ARASI GEÇİŞ (AYARLAR MANTIĞI) ---
 openSettingsBtn.addEventListener('click', () => {
     ayarlarEkraniniAc();
@@ -63,9 +101,12 @@ openSettingsBtn.addEventListener('click', () => {
         .then(res => res.json())
         .then(data => {
             mevcutNickname = data.nickname || aktifKullanici.split('@')[0];
+            secilenAvatar = data.avatar || '';
             document.getElementById('set-nickname').value = mevcutNickname;
             document.getElementById('set-status-text').value = data.status || '';
             document.getElementById('set-password-confirm').value = '';
+            avatarFileInput.value = '';
+            avatarOnizlemeGuncelle(secilenAvatar);
         });
 });
 
@@ -85,6 +126,7 @@ settingsForm.addEventListener('submit', async (e) => {
     const nickname = document.getElementById('set-nickname').value.trim();
     const status = document.getElementById('set-status-text').value.trim();
     const password = document.getElementById('set-password-confirm').value.trim();
+    const avatar = secilenAvatar;
 
     if (!nickname) {
         alert("Kullanıcı adı boş bırakılamaz!");
@@ -100,7 +142,7 @@ settingsForm.addEventListener('submit', async (e) => {
         const response = await fetch('/api/profil-guncelle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eposta: aktifKullanici, nickname, status, password })
+            body: JSON.stringify({ eposta: aktifKullanici, nickname, status, password, avatar })
         });
         const data = await response.json();
         alert(data.mesaj);

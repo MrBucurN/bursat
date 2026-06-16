@@ -328,6 +328,22 @@ body {
   border-radius: 10px;
 }
 
+.settings-field input[type="file"].settings-input {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--input-border);
+  background: var(--card-bg);
+  color: var(--text-primary);
+}
+
+.settings-avatar-preview {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--input-focus-border);
+  margin-top: 0.25rem;
+}
+
 .settings-help {
   color: var(--text-muted);
   display: block;
