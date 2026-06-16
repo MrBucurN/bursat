@@ -1,4 +1,10 @@
-const express = require('express');
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+// MongoDB'ye Bağlanma Kodu
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB veritabanına başarıyla bağlanıldı! 🚀"))
+  .catch((err) => console.log("Veritabanı bağlantı hatası:", err));const express = require('express');
 const app = express();
 const path = require('path');
 const fs = require('fs');
