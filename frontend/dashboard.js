@@ -68,6 +68,29 @@ function avatarOnizlemeGuncelle(src) {
     }
 }
 
+function seciliAvatarYukle() {
+    const dosya = avatarFileInput.files && avatarFileInput.files[0];
+
+    if (!dosya) {
+        return Promise.resolve(secilenAvatar);
+    }
+
+    if (secilenAvatar) {
+        return Promise.resolve(secilenAvatar);
+    }
+
+    return new Promise((resolve, reject) => {
+        const okuyucu = new FileReader();
+        okuyucu.onload = () => {
+            secilenAvatar = String(okuyucu.result || '');
+            avatarOnizlemeGuncelle(secilenAvatar);
+            resolve(secilenAvatar);
+        };
+        okuyucu.onerror = () => reject(new Error('Avatar okunamadı'));
+        okuyucu.readAsDataURL(dosya);
+    });
+}
+
 avatarFileInput.addEventListener('change', () => {
     const dosya = avatarFileInput.files && avatarFileInput.files[0];
 
@@ -126,7 +149,7 @@ settingsForm.addEventListener('submit', async (e) => {
     const nickname = document.getElementById('set-nickname').value.trim();
     const status = document.getElementById('set-status-text').value.trim();
     const password = document.getElementById('set-password-confirm').value.trim();
-    const avatar = secilenAvatar;
+    let avatar = secilenAvatar;
 
     if (!nickname) {
         alert("Kullanıcı adı boş bırakılamaz!");
@@ -136,6 +159,16 @@ settingsForm.addEventListener('submit', async (e) => {
     if (nickname !== mevcutNickname && !password) {
         alert("Kullanıcı adını değiştirmek için şifrenizi girin!");
         return;
+    }
+
+    if (avatarFileInput.files && avatarFileInput.files[0] && !avatar) {
+        try {
+            avatar = await seciliAvatarYukle();
+        } catch (error) {
+            console.error('Avatar okunamadı:', error);
+            alert('Profil resmi okunamadı. Lütfen tekrar deneyin.');
+            return;
+        }
     }
 
     try {

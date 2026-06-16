@@ -7,7 +7,7 @@ const app = express();
 
 // FRONTEND klasörünü kesin bir şekilde tanımlıyoruz
 app.use(express.static(path.join(__dirname, 'frontend')));
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // Kök dizine (/) gidilince login.html'i zorla açmasını söylüyoruz
 app.get('/', (req, res) => {
