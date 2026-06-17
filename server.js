@@ -39,6 +39,10 @@ const upload = multer({
     limits: { fileSize: 6 * 1024 * 1024 }
 });
 
+function escapeRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Kök dizine (/) gidilince login.html'i zorla açmasını söylüyoruz
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'frontend', 'login.html'));
@@ -60,6 +64,8 @@ const friendshipSchema = new mongoose.Schema({
     alan: String,     
     durum: String     // 'beklemede' veya 'arkadaş'
 }, { timestamps: true });
+friendshipSchema.index({ gonderen: 1, alan: 1, durum: 1 });
+friendshipSchema.index({ alan: 1, durum: 1 });
 const Friendship = mongoose.model('Friendship', friendshipSchema);
 
 // 3. Mesaj Modeli (Direkt burada tanımlıyoruz)
@@ -75,6 +81,8 @@ const messageSchema = new mongoose.Schema({
 
 // Hızlandırıcı Index ekle:
 messageSchema.index({ toNickname: 1, fromNickname: 1 });
+messageSchema.index({ from: 1, toNickname: 1, createdAt: -1 });
+messageSchema.index({ fromNickname: 1, toNickname: 1, createdAt: -1 });
 const Message = mongoose.model('Message', messageSchema);
 
 // --- ENDPOINT'LER ---
@@ -97,7 +105,7 @@ app.post('/kayit', async (req, res) => {
         }
 
         // Nickname kontrolü (Büyük/küçük harf duyarsız arama)
-        const nickVarMi = await User.findOne({ nickname: { $regex: new RegExp("^" + nickname + "$", "i") } });
+        const nickVarMi = await User.findOne({ nickname: { $regex: new RegExp(`^${escapeRegex(nickname)}$`, "i") } });
         if (nickVarMi) {
             return res.json({ success: false, mesaj: "Bu kullanıcı adı zaten alınmış! ❌" });
         }
@@ -173,7 +181,7 @@ app.post('/api/profil-guncelle', upload.single('avatarImage'), async (req, res) 
             // Nickname başkası tarafından alınmış mı?
             if (nicknameDegisti) {
                 const nickAlinmis = await User.findOne({ 
-                    nickname: { $regex: new RegExp("^" + yeniNickname + "$", "i") },
+                    nickname: { $regex: new RegExp(`^${escapeRegex(yeniNickname)}$`, "i") },
                     username: { $ne: eposta } // Kendisi hariç
                 });
                 if (nickAlinmis) return res.json({ success: false, mesaj: "Bu kullanıcı adı zaten alınmış! ❌" });
@@ -214,7 +222,7 @@ app.post('/api/arkadas-ekle', async (req, res) => {
         const { gonderenEposta, hedefNickname } = req.body;
         
         const ben = await User.findOne({ username: gonderenEposta });
-        const hedef = await User.findOne({ nickname: { $regex: new RegExp("^" + hedefNickname + "$", "i") } });
+        const hedef = await User.findOne({ nickname: { $regex: new RegExp(`^${escapeRegex(hedefNickname)}$`, "i") } });
 
         if (!hedef) return res.json({ success: false, mesaj: "Kullanıcı bulunamadı! ❌" });
         if (ben && ben.nickname === hedef.nickname) return res.json({ success: false, mesaj: "Kendini ekleyemezsin! 😅" });
@@ -252,29 +260,35 @@ app.get('/api/arkadasliklar/:eposta', async (req, res) => {
         // Bu kullanıcıyla ilgili tüm arkadaşlık kayıtlarını getir
         const arkadasliklar = await Friendship.find({
             $or: [{ gonderen: nick }, { alan: nick }]
-        });
+        }).lean();
 
-        const arkadaslarUzetleri = [];
+        const arkadasNickler = [];
         const gelenIstekler = [];
 
-        for (let a of arkadasliklar) {
-            let hedefNick = null;
+        for (const a of arkadasliklar) {
             if (a.durum === 'arkadaş') {
-                if (a.gonderen === nick) hedefNick = a.alan;
-                if (a.alan === nick) hedefNick = a.gonderen;
-                
+                const hedefNick = a.gonderen === nick ? a.alan : a.alan === nick ? a.gonderen : null;
                 if (hedefNick) {
-                    const hDetay = await User.findOne({ nickname: hedefNick });
-                    arkadaslarUzetleri.push({
-                        nickname: hedefNick,
-                        avatar: hDetay ? hDetay.avatar : "",
-                        status: hDetay ? hDetay.status : ""
-                    });
+                    arkadasNickler.push(hedefNick);
                 }
             } else if (a.durum === 'beklemede' && a.alan === nick) {
                 gelenIstekler.push(a.gonderen);
             }
         }
+
+        const arkadasDetaylari = arkadasNickler.length > 0
+            ? await User.find({ nickname: { $in: arkadasNickler } }).select('nickname avatar status').lean()
+            : [];
+
+        const arkadasMap = new Map(arkadasDetaylari.map(kullanici => [kullanici.nickname, kullanici]));
+        const arkadaslarUzetleri = arkadasNickler.map(nickname => {
+            const detay = arkadasMap.get(nickname);
+            return {
+                nickname,
+                avatar: detay ? detay.avatar : "",
+                status: detay ? detay.status : ""
+            };
+        });
 
         res.json({ arkadaslar: arkadaslarUzetleri, gelenIstekler });
     } catch (error) {

@@ -469,8 +469,20 @@ chatForm.addEventListener('submit', async (e) => {
 });
 
 // --- 7. ZAMANLAYICI MOTORU ---
-paneliGuncelle();
-setInterval(() => {
-    paneliGuncelle();
-    mesajlariCanliGetir();
-}, 2000);
+let yenilemeDongusuAktif = false;
+
+async function yenilemeDongusu() {
+    if (yenilemeDongusuAktif) return;
+
+    yenilemeDongusuAktif = true;
+
+    try {
+        await paneliGuncelle();
+        await mesajlariCanliGetir();
+    } finally {
+        yenilemeDongusuAktif = false;
+        setTimeout(yenilemeDongusu, 2000);
+    }
+}
+
+yenilemeDongusu();
