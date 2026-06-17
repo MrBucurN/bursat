@@ -411,7 +411,13 @@ chatForm.addEventListener('submit', async (e) => {
 
 // --- 7. ZAMANLAYICI MOTORU ---
 paneliGuncelle();
+
 setInterval(() => {
-    paneliGuncelle();
-    mesajlariCanliGetir();
+    paneliGuncelle();           // arkadaş listesi yavaş değişir, 5sn yeterli
+}, 5000);
+
+setInterval(() => {
+    if (secilenAliciNickname) { // sohbet seçiliyse mesajları çek
+        mesajlariCanliGetir();
+    }
 }, 2000);
