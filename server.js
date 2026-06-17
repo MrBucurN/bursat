@@ -333,44 +333,42 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
 app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res) => {
     try {
         const { fromEposta, toNickname, text } = req.body;
-        const image = req.file ? `/uploads/${req.file.filename}` : (req.body.image || '');
-
+        const image = uploadedFileUrl(req.file) || req.body.image || '';
+        
         const ben = await User.findOne({ username: fromEposta });
         const alici = await User.findOne({ nickname: toNickname });
 
         const yeniMesaj = new Message({
             from: fromEposta,
             fromNickname: ben ? ben.nickname : fromEposta.split('@')[0],
-            toEposta: alici ? alici.username : '',
+            toEposta: alici ? alici.username : "",
             toNickname: toNickname,
-            text: text || '',
-            image: typeof image === 'string' ? image : '',
+            text: text || "",
+            image: typeof image === 'string' ? image : "",
             time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
         });
 
+
+    app.use((err, req, res, next) => {
+        if (err instanceof multer.MulterError) {
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.json({ success: false, mesaj: 'Resim boyutu çok büyük. En fazla 6MB yükleyebilirsin.' });
+            }
+
+            return res.json({ success: false, mesaj: 'Dosya yüklenemedi.' });
+        }
+
+        if (err) {
+            return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
+        }
+
+        next();
+    });
         await yeniMesaj.save();
         res.json({ success: true, yeniMesaj });
     } catch (error) {
-        console.log("Mesaj Hatası:", error);
         res.json({ success: false, mesaj: "Mesaj gönderilemedi!" });
     }
-});
-
-// Bu blok tüm route'ların DIŞINDA ve EN SONDA olmalı
-app.use((err, req, res, next) => {
-    if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-            return res.json({ success: false, mesaj: 'Resim boyutu çok büyük. En fazla 6MB yükleyebilirsin.' });
-        }
-
-        return res.json({ success: false, mesaj: 'Dosya yüklenemedi.' });
-    }
-
-    if (err) {
-        return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
-    }
-
-    next();
 });
 
 const PORT = 3000;
