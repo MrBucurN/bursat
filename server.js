@@ -358,34 +358,19 @@ app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res)
 
 // Bu blok tüm route'ların DIŞINDA ve EN SONDA olmalı
 app.use((err, req, res, next) => {
-    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE')
-        return res.json({ success: false, mesaj: 'Resim boyutu çok büyük. En fazla 6MB yükleyebilirsin.' });
-    if (err)
-        return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
-    next();
-});
-
-
-    app.use((err, req, res, next) => {
-        if (err instanceof multer.MulterError) {
-            if (err.code === 'LIMIT_FILE_SIZE') {
-                return res.json({ success: false, mesaj: 'Resim boyutu çok büyük. En fazla 6MB yükleyebilirsin.' });
-            }
-
-            return res.json({ success: false, mesaj: 'Dosya yüklenemedi.' });
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.json({ success: false, mesaj: 'Resim boyutu çok büyük. En fazla 6MB yükleyebilirsin.' });
         }
 
-        if (err) {
-            return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
-        }
-
-        next();
-    });
-        await yeniMesaj.save();
-        res.json({ success: true, yeniMesaj });
-    } catch (error) {
-        res.json({ success: false, mesaj: "Mesaj gönderilemedi!" });
+        return res.json({ success: false, mesaj: 'Dosya yüklenemedi.' });
     }
+
+    if (err) {
+        return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
+    }
+
+    next();
 });
 
 const PORT = 3000;
