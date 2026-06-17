@@ -13,7 +13,6 @@ logoutButton.addEventListener('click', () => {
 let secilenAliciNickname = null;
 let mevcutNickname = '';
 let secilenAvatar = '';
-let secilenMesajResmi = '';
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -70,31 +69,6 @@ function avatarOnizlemeGuncelle(src) {
     }
 }
 
-function seciliMesajResmiYukle() {
-    const dosya = chatImageInput.files && chatImageInput.files[0];
-
-    if (!dosya) {
-        return Promise.resolve('');
-    }
-
-    if (!dosya.type.startsWith('image/')) {
-        alert('Lütfen bir resim dosyası seçin.');
-        chatImageInput.value = '';
-        secilenMesajResmi = '';
-        return Promise.resolve('');
-    }
-
-    return new Promise((resolve, reject) => {
-        const okuyucu = new FileReader();
-        okuyucu.onload = () => {
-            secilenMesajResmi = String(okuyucu.result || '');
-            resolve(secilenMesajResmi);
-        };
-        okuyucu.onerror = () => reject(new Error('Mesaj resmi okunamadı'));
-        okuyucu.readAsDataURL(dosya);
-    });
-}
-
 function seciliAvatarYukle() {
     const dosya = avatarFileInput.files && avatarFileInput.files[0];
 
@@ -116,6 +90,90 @@ function seciliAvatarYukle() {
         okuyucu.onerror = () => reject(new Error('Avatar okunamadı'));
         okuyucu.readAsDataURL(dosya);
     });
+}
+
+function onizlemeUrliniTemizle(url) {
+    if (url && url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+    }
+}
+
+async function resimDosyasiniKucult(dosya, maxGenislik = 1600, maxYukseklik = 1600, kalite = 0.82) {
+    if (!dosya || !dosya.type || !dosya.type.startsWith('image/')) {
+        return dosya;
+    }
+
+    if (dosya.size <= 900 * 1024) {
+        return dosya;
+    }
+
+    const kaynakUrl = URL.createObjectURL(dosya);
+
+    try {
+        const goruntu = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Resim okunamadı'));
+            img.src = kaynakUrl;
+        });
+
+        const oran = Math.min(maxGenislik / goruntu.width, maxYukseklik / goruntu.height, 1);
+        const genislik = Math.max(1, Math.round(goruntu.width * oran));
+        const yukseklik = Math.max(1, Math.round(goruntu.height * oran));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = genislik;
+        canvas.height = yukseklik;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return dosya;
+        }
+
+        ctx.drawImage(goruntu, 0, 0, genislik, yukseklik);
+
+        const blob = await new Promise((resolve) => {
+            canvas.toBlob(resolve, 'image/jpeg', kalite);
+        });
+
+        if (!blob) {
+            return dosya;
+        }
+
+        return new File([blob], dosya.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+    } finally {
+        URL.revokeObjectURL(kaynakUrl);
+    }
+}
+
+function geciciMesajBalonuOlustur({ text, imageUrl }) {
+    const mesajBalonu = document.createElement('div');
+    mesajBalonu.className = 'message outgoing pending-message';
+    mesajBalonu.style.opacity = '0.7';
+
+    if (imageUrl) {
+        const imageEl = document.createElement('img');
+        imageEl.src = imageUrl;
+        imageEl.alt = 'Gönderiliyor';
+        imageEl.className = 'message-image';
+        mesajBalonu.appendChild(imageEl);
+    }
+
+    if (text) {
+        const textEl = document.createElement('div');
+        textEl.className = 'message-text';
+        textEl.textContent = text;
+        mesajBalonu.appendChild(textEl);
+    }
+
+    const durumEl = document.createElement('div');
+    durumEl.className = 'message-status';
+    durumEl.textContent = 'Gönderiliyor...';
+    durumEl.style.fontSize = '12px';
+    durumEl.style.opacity = '0.8';
+    mesajBalonu.appendChild(durumEl);
+
+    return mesajBalonu;
 }
 
 avatarFileInput.addEventListener('change', () => {
@@ -199,10 +257,22 @@ settingsForm.addEventListener('submit', async (e) => {
     }
 
     try {
+        const formData = new FormData();
+        formData.append('eposta', aktifKullanici);
+        formData.append('nickname', nickname);
+        formData.append('status', status);
+        formData.append('password', password);
+
+        const avatarDosyasi = avatarFileInput.files && avatarFileInput.files[0];
+        if (avatarDosyasi) {
+            formData.append('avatarImage', avatarDosyasi);
+        } else if (avatar) {
+            formData.append('avatar', avatar);
+        }
+
         const response = await fetch('/api/profil-guncelle', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eposta: aktifKullanici, nickname, status, password, avatar })
+            body: formData
         });
         const data = await response.json();
         alert(data.mesaj);
@@ -422,49 +492,68 @@ function mesajBalonuOlustur(mesaj) {
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const mesajMetni = msgInput.value.trim();
-    let mesajResmi = secilenMesajResmi;
+    const mesajDosyasi = chatImageInput.files && chatImageInput.files[0];
 
     if (!secilenAliciNickname) {
         alert("Lütfen bir arkadaşınızı seçin!");
         return;
     }
 
-    if (!mesajMetni && !(chatImageInput.files && chatImageInput.files[0])) {
+    if (!mesajMetni && !mesajDosyasi) {
         alert("Lütfen bir mesaj yazın ya da fotoğraf seçin!");
         return;
     }
 
-    if (chatImageInput.files && chatImageInput.files[0] && !mesajResmi) {
-        try {
-            mesajResmi = await seciliMesajResmiYukle();
-        } catch (error) {
-            console.error('Mesaj resmi okunamadı:', error);
-            alert('Fotoğraf yüklenemedi. Lütfen tekrar deneyin.');
-            return;
-        }
+    if (mesajDosyasi && !mesajDosyasi.type.startsWith('image/')) {
+        alert('Lütfen bir resim dosyası seçin.');
+        chatImageInput.value = '';
+        return;
     }
 
+    let onizlemeUrl = '';
+    let geciciBalon = null;
+
     try {
+        const kucultulmusDosya = mesajDosyasi ? await resimDosyasiniKucult(mesajDosyasi) : null;
+        onizlemeUrl = kucultulmusDosya ? URL.createObjectURL(kucultulmusDosya) : '';
+        geciciBalon = geciciMesajBalonuOlustur({ text: mesajMetni, imageUrl: onizlemeUrl });
+        messagesBox.appendChild(geciciBalon);
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+
+        const formData = new FormData();
+        formData.append('fromEposta', aktifKullanici);
+        formData.append('toNickname', secilenAliciNickname);
+        formData.append('text', mesajMetni);
+
+        if (kucultulmusDosya) {
+            formData.append('messageImage', kucultulmusDosya);
+        }
+
         const response = await fetch('/api/mesaj-gonder-v2', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fromEposta: aktifKullanici,
-                toNickname: secilenAliciNickname,
-                text: mesajMetni,
-                image: mesajResmi
-            })
+            body: formData
         });
         const data = await response.json();
         if (data.success) {
-            messagesBox.appendChild(mesajBalonuOlustur(data.yeniMesaj));
-            messagesBox.scrollTop = messagesBox.scrollHeight;
+            if (geciciBalon && geciciBalon.parentNode) {
+                geciciBalon.replaceWith(mesajBalonuOlustur(data.yeniMesaj));
+            } else {
+                messagesBox.appendChild(mesajBalonuOlustur(data.yeniMesaj));
+            }
             msgInput.value = '';
             chatImageInput.value = '';
-            secilenMesajResmi = '';
+        } else if (geciciBalon && geciciBalon.parentNode) {
+            geciciBalon.remove();
+            alert(data.mesaj || 'Mesaj gönderilemedi!');
         }
     } catch (error) {
+        if (geciciBalon && geciciBalon.parentNode) {
+            geciciBalon.remove();
+        }
         console.error("Mesaj yollanamadı:", error);
+        alert('Mesaj gönderilemedi. Lütfen tekrar deneyin.');
+    } finally {
+        onizlemeUrliniTemizle(onizlemeUrl);
     }
 });
 
