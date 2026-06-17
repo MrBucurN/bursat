@@ -72,8 +72,10 @@ const messageSchema = new mongoose.Schema({
     image: { type: String, default: "" },
     time: String
 }, { timestamps: true });
-const Message = mongoose.model('Message', messageSchema);
 
+// Hızlandırıcı Index ekle:
+messageSchema.index({ toNickname: 1, fromNickname: 1 });
+const Message = mongoose.model('Message', messageSchema);
 
 // --- ENDPOINT'LER ---
 
@@ -314,6 +316,7 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
         const ben = await User.findOne({ username: benEposta });
         const benNick = ben ? ben.nickname : benEposta.split('@')[0];
 
+        // Sadece son 50 mesajı getir
         const ozelKonusma = await Message.find({
             $or: [
                 { from: benEposta, toNickname: arkadasNickname },
@@ -321,9 +324,9 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
                 { fromNickname: arkadasNickname, toEposta: benEposta },
                 { fromNickname: arkadasNickname, toNickname: benNick }
             ]
-        }).sort({ createdAt: 1 }); // Eski mesajlardan yeniye doğru sıralar
+        }).sort({ createdAt: -1 }).limit(50); // En sonları getir
 
-        res.json(ozelKonusma);
+        res.json(ozelKonusma.reverse()); // Sırayı düzelt
     } catch (error) {
         res.json([]);
     }
