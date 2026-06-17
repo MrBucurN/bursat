@@ -11,6 +11,7 @@ logoutButton.addEventListener('click', () => {
 });
 
 let secilenAliciNickname = null;
+let secilenAliciEposta = null;
 let mevcutNickname = '';
 let secilenAvatar = '';
 
@@ -347,7 +348,7 @@ async function paneliGuncelle() {
                     `;
                     chatItem.addEventListener('click', () => {
                         if (secilenAliciNickname !== arkadas.nickname) {
-                            sohbetiAc(arkadas.nickname, arkadas.avatar, arkadas.status, chatItem);
+                            sohbetiAc(arkadas.nickname, arkadas.username, arkadas.avatar, arkadas.status, chatItem);
                         } else {
                             sohbetEkraniniAc();
                             messagesBox.scrollTop = messagesBox.scrollHeight;
@@ -415,8 +416,9 @@ dynamicRequestsList.addEventListener('click', async (e) => {
 });
 
 // --- 4. SOHBETİ SEÇME VE AKTİF ETME ---
-async function sohbetiAc(arkadasNickname, avatar, status, eleman) {
+async function sohbetiAc(arkadasNickname, arkadasEposta, avatar, status, eleman) {
     secilenAliciNickname = arkadasNickname;
+    secilenAliciEposta = arkadasEposta || null;
 
     const eskiAktif = document.querySelector('.chat-item.active');
     if (eskiAktif) eskiAktif.classList.remove('active');
@@ -442,10 +444,10 @@ async function sohbetiAc(arkadasNickname, avatar, status, eleman) {
 
 // --- 5. MESAJLARI CANLI GÖSTEREN ARKA PLAN MOTORU ---
 async function mesajlariCanliGetir() {
-    if (!secilenAliciNickname) return;
+    if (!secilenAliciEposta) return;
 
     try {
-        const response = await fetch(`/api/mesajlar-v2/${aktifKullanici}/${secilenAliciNickname}`);
+        const response = await fetch(`/api/mesajlar-v2/${aktifKullanici}/${secilenAliciEposta}`);
         const mesajlar = await response.json();
 
         const kullaniciAsagidaMi = messagesBox.scrollHeight - messagesBox.scrollTop <= messagesBox.clientHeight + 100;
@@ -499,6 +501,11 @@ chatForm.addEventListener('submit', async (e) => {
         return;
     }
 
+    if (!secilenAliciEposta) {
+        alert("Seçili sohbet için alıcı bilgisi bulunamadı.");
+        return;
+    }
+
     if (!mesajMetni && !mesajDosyasi) {
         alert("Lütfen bir mesaj yazın ya da fotoğraf seçin!");
         return;
@@ -526,6 +533,7 @@ chatForm.addEventListener('submit', async (e) => {
         const formData = new FormData();
         formData.append('fromEposta', aktifKullanici);
         formData.append('toNickname', secilenAliciNickname);
+        formData.append('toEposta', secilenAliciEposta);
         formData.append('text', mesajMetni);
 
         if (kucultulmusDosya) {

@@ -277,7 +277,7 @@ app.get('/api/arkadasliklar/:eposta', async (req, res) => {
         }
 
         const arkadasDetaylari = arkadasNickler.length > 0
-            ? await User.find({ nickname: { $in: arkadasNickler } }).select('nickname avatar status').lean()
+            ? await User.find({ nickname: { $in: arkadasNickler } }).select('nickname username avatar status').lean()
             : [];
 
         const arkadasMap = new Map(arkadasDetaylari.map(kullanici => [kullanici.nickname, kullanici]));
@@ -285,6 +285,7 @@ app.get('/api/arkadasliklar/:eposta', async (req, res) => {
             const detay = arkadasMap.get(nickname);
             return {
                 nickname,
+                username: detay ? detay.username : "",
                 avatar: detay ? detay.avatar : "",
                 status: detay ? detay.status : ""
             };
@@ -324,19 +325,15 @@ app.post('/api/arkadas-yanitla', async (req, res) => {
 });
 
 // GÜVENLİ MESAJ ÇEKME
-app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
+app.get('/api/mesajlar-v2/:benEposta/:arkadasEposta', async (req, res) => {
     try {
-        const { benEposta, arkadasNickname } = req.params;
-        const ben = await User.findOne({ username: benEposta });
-        const benNick = ben ? ben.nickname : benEposta.split('@')[0];
+        const { benEposta, arkadasEposta } = req.params;
 
-        // Sadece son 50 mesajı getir
+        // Sadece iki e-posta arasındaki konuşmayı getir
         const ozelKonusma = await Message.find({
             $or: [
-                { from: benEposta, toNickname: arkadasNickname },
-                { fromNickname: benNick, toNickname: arkadasNickname },
-                { fromNickname: arkadasNickname, toEposta: benEposta },
-                { fromNickname: arkadasNickname, toNickname: benNick }
+                { from: benEposta, toEposta: arkadasEposta },
+                { from: arkadasEposta, toEposta: benEposta }
             ]
         }).sort({ createdAt: -1 }).limit(50); // En sonları getir
 
@@ -351,17 +348,18 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
 // --- Güvenli Mesaj Gönderme ---
 app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res) => {
     try {
-        const { fromEposta, toNickname, text } = req.body;
+        const { fromEposta, toNickname, toEposta: hedefEposta, text } = req.body;
         const image = uploadedFileUrl(req.file) || req.body.image || '';
         
         const ben = await User.findOne({ username: fromEposta });
-        const alici = await User.findOne({ nickname: toNickname });
+        const alici = hedefEposta ? await User.findOne({ username: hedefEposta }) : await User.findOne({ nickname: toNickname });
+        const aliciEposta = alici ? alici.username : (hedefEposta || '');
 
         const yeniMesaj = new Message({
             from: fromEposta,
             fromNickname: ben ? ben.nickname : fromEposta.split('@')[0],
-            toEposta: alici ? alici.username : "",
-            toNickname: toNickname,
+            toEposta: aliciEposta,
+            toNickname: alici ? alici.nickname : toNickname,
             text: text || "",
             image: typeof image === 'string' ? image : "",
             time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
