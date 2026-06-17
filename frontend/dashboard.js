@@ -15,6 +15,7 @@ let secilenAliciEposta = null;
 let mevcutNickname = '';
 let secilenAvatar = '';
 let aktifSohbetToken = 0;
+const ilkSohbetMesajLimiti = 20;
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -452,7 +453,7 @@ async function mesajlariCanliGetir(sohbetToken = aktifSohbetToken) {
     if (!secilenAliciEposta) return;
 
     try {
-        const response = await fetch(`/api/mesajlar-v2/${aktifKullanici}/${secilenAliciEposta}`);
+        const response = await fetch(`/api/mesajlar-v2/${aktifKullanici}/${secilenAliciEposta}?limit=${ilkSohbetMesajLimiti}`);
         const mesajlar = await response.json();
 
         if (sohbetToken !== aktifSohbetToken) {
@@ -560,6 +561,7 @@ chatForm.addEventListener('submit', async (e) => {
             } else {
                 messagesBox.appendChild(mesajBalonuOlustur(data.yeniMesaj));
             }
+            messagesBox.scrollTop = messagesBox.scrollHeight;
         } else if (geciciBalon && geciciBalon.parentNode) {
             geciciBalon.remove();
             alert(data.mesaj || 'Mesaj gönderilemedi!');

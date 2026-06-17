@@ -328,6 +328,7 @@ app.post('/api/arkadas-yanitla', async (req, res) => {
 app.get('/api/mesajlar-v2/:benEposta/:arkadasEposta', async (req, res) => {
     try {
         const { benEposta, arkadasEposta } = req.params;
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
 
         // Sadece iki e-posta arasındaki konuşmayı getir
         const ozelKonusma = await Message.find({
@@ -335,7 +336,11 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasEposta', async (req, res) => {
                 { from: benEposta, toEposta: arkadasEposta },
                 { from: arkadasEposta, toEposta: benEposta }
             ]
-        }).sort({ createdAt: -1 }).limit(50); // En sonları getir
+        })
+            .select('from fromNickname toEposta toNickname text image time createdAt')
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean(); // En sonları getir
 
         res.json(ozelKonusma.reverse()); // Sırayı düzelt
     } catch (error) {
