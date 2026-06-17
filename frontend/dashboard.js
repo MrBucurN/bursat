@@ -14,6 +14,7 @@ let secilenAliciNickname = null;
 let secilenAliciEposta = null;
 let mevcutNickname = '';
 let secilenAvatar = '';
+let aktifSohbetToken = 0;
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -417,12 +418,16 @@ dynamicRequestsList.addEventListener('click', async (e) => {
 
 // --- 4. SOHBETİ SEÇME VE AKTİF ETME ---
 async function sohbetiAc(arkadasNickname, arkadasEposta, avatar, status, eleman) {
+    aktifSohbetToken += 1;
+    const buSohbetToken = aktifSohbetToken;
     secilenAliciNickname = arkadasNickname;
     secilenAliciEposta = arkadasEposta || null;
 
     const eskiAktif = document.querySelector('.chat-item.active');
     if (eskiAktif) eskiAktif.classList.remove('active');
     eleman.classList.add('active');
+
+    messagesBox.innerHTML = '<div class="empty-state">Sohbet yükleniyor...</div>';
 
     activeChatTitle.textContent = arkadasNickname;
     activeChatStatus.textContent = status || "Bursat Üyesi";
@@ -437,18 +442,22 @@ async function sohbetiAc(arkadasNickname, arkadasEposta, avatar, status, eleman)
         activeAvatar.textContent = arkadasNickname.charAt(0).toUpperCase();
     }
 
-    await mesajlariCanliGetir();
+    await mesajlariCanliGetir(buSohbetToken);
     messagesBox.scrollTop = messagesBox.scrollHeight;
     sohbetEkraniniAc();
 }
 
 // --- 5. MESAJLARI CANLI GÖSTEREN ARKA PLAN MOTORU ---
-async function mesajlariCanliGetir() {
+async function mesajlariCanliGetir(sohbetToken = aktifSohbetToken) {
     if (!secilenAliciEposta) return;
 
     try {
         const response = await fetch(`/api/mesajlar-v2/${aktifKullanici}/${secilenAliciEposta}`);
         const mesajlar = await response.json();
+
+        if (sohbetToken !== aktifSohbetToken) {
+            return;
+        }
 
         const kullaniciAsagidaMi = messagesBox.scrollHeight - messagesBox.scrollTop <= messagesBox.clientHeight + 100;
         const mevcutMesajSayisi = messagesBox.querySelectorAll('.message').length;
