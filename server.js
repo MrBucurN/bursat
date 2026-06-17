@@ -330,6 +330,8 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasNickname', async (req, res) => {
 });
 
 // Güvenli Mesaj Gönderme
+// Güvenli Mesaj Gönderme (BU KISMI KOPYALAYIP ESKİSİYLE DEĞİŞTİR)
+// --- Güvenli Mesaj Gönderme ---
 app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res) => {
     try {
         const { fromEposta, toNickname, text } = req.body;
@@ -348,28 +350,28 @@ app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res)
             time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
         });
 
-
-    app.use((err, req, res, next) => {
-        if (err instanceof multer.MulterError) {
-            if (err.code === 'LIMIT_FILE_SIZE') {
-                return res.json({ success: false, mesaj: 'Resim boyutu çok büyük. En fazla 6MB yükleyebilirsin.' });
-            }
-
-            return res.json({ success: false, mesaj: 'Dosya yüklenemedi.' });
-        }
-
-        if (err) {
-            return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
-        }
-
-        next();
-    });
         await yeniMesaj.save();
         res.json({ success: true, yeniMesaj });
     } catch (error) {
+        console.error("Mesaj gönderilemedi:", error);
         res.json({ success: false, mesaj: "Mesaj gönderilemedi!" });
     }
+}); // <--- Mesaj gönderme fonksiyonu burada düzgünce biter.
+
+// --- Hata Yönetimi (Bu bloğu yukarıdaki app.post'un DIŞINA çıkardık) ---
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.json({ success: false, mesaj: 'Resim boyutu çok büyük (En fazla 6MB).' });
+        }
+        return res.json({ success: false, mesaj: 'Dosya yükleme hatası.' });
+    }
+    if (err) {
+        return res.json({ success: false, mesaj: err.message || 'Beklenmeyen bir hata oluştu.' });
+    }
+    next();
 });
 
+// PORT ayarların en altta kalmaya devam edecek
 const PORT = 3000;
-app.listen(PORT, () => console.log(`\n🚀 Güvenli ve Bulut Bağlantılı Sunucu http://localhost:${PORT} adresinde aktif!`));
+app.listen(PORT, () => console.log(`\n🚀 Sunucu http://localhost:${PORT} adresinde aktif!`));
