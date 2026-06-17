@@ -519,6 +519,9 @@ chatForm.addEventListener('submit', async (e) => {
         geciciBalon = geciciMesajBalonuOlustur({ text: mesajMetni, imageUrl: onizlemeUrl });
         messagesBox.appendChild(geciciBalon);
         messagesBox.scrollTop = messagesBox.scrollHeight;
+        msgInput.value = '';
+        chatImageInput.value = '';
+        msgInput.focus();
 
         const formData = new FormData();
         formData.append('fromEposta', aktifKullanici);
@@ -540,8 +543,6 @@ chatForm.addEventListener('submit', async (e) => {
             } else {
                 messagesBox.appendChild(mesajBalonuOlustur(data.yeniMesaj));
             }
-            msgInput.value = '';
-            chatImageInput.value = '';
         } else if (geciciBalon && geciciBalon.parentNode) {
             geciciBalon.remove();
             alert(data.mesaj || 'Mesaj gönderilemedi!');
