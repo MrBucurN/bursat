@@ -164,6 +164,20 @@
                 </div>
                 <div class="group-settings-summary" id="group-settings-summary"></div>
                 <div class="group-settings-forms">
+
+                    <form id="group-edit-form" class="group-settings-form" style="display: none;">
+                        <div class="settings-field">
+                            <label class="settings-label">Grup Adı</label>
+                            <input type="text" id="edit-group-name" class="message-input settings-input" placeholder="Grup adı..." autocomplete="off" required>
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">Grup Simgesi</label>
+                            <input type="file" id="edit-group-icon" class="settings-input" accept="image/*">
+                            <img id="edit-group-icon-preview" class="settings-avatar-preview" alt="Grup Simge Önizleme" style="display:none;">
+                        </div>
+                        <button type="submit" class="settings-save-btn">Grup Bilgilerini Kaydet</button>
+                    </form>
+
                     <form id="group-role-form" class="group-settings-form">
                         <div class="settings-field">
                             <label class="settings-label">Üye</label>

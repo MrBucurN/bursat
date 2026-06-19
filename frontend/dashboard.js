@@ -62,6 +62,14 @@ const groupSettingsMainArea = document.getElementById('group-settings-main-area'
 const closeGroupSettingsBtn = document.getElementById('close-group-settings-btn');
 const groupSettingsTitle = document.getElementById('group-settings-title');
 const groupSettingsSummary = document.getElementById('group-settings-summary');
+
+// Grup Düzenleme Formu
+const groupEditForm = document.getElementById('group-edit-form');
+const editGroupName = document.getElementById('edit-group-name');
+const editGroupIcon = document.getElementById('edit-group-icon');
+const editGroupIconPreview = document.getElementById('edit-group-icon-preview');
+let editSecilenGrupIcon = '';
+
 const groupRoleForm = document.getElementById('group-role-form');
 const groupRoleMember = document.getElementById('group-role-member');
 const groupRoleSelect = document.getElementById('group-role-select');
@@ -304,7 +312,7 @@ function grupIslemleriniGuncelle() {
     }
 
     if (groupKickBtn) {
-        const yoneticiMi = secilenGrup && secilenGrup.creatorEposta === aktifKullanici;
+        const yoneticiMi = secilenGrup && secilenGrup.currentUserRole === 'yonetici';
         groupKickBtn.style.display = grupAcikMi && yoneticiMi ? 'inline-flex' : 'none';
     }
 
@@ -424,6 +432,23 @@ async function grupAyarlariniYukle() {
             groupSettingsSummary.textContent = `Rolünüz: ${roleLabel(data.grup.currentUserRole)} | Üye sayısı: ${data.grup.memberCount}`;
         }
 
+        // Grup Adı ve Simgesi Formunu Sadece Yöneticilere Göster
+        if (groupEditForm) {
+            if (data.grup.canManageRoles && data.grup.currentUserRole === 'yonetici') {
+                groupEditForm.style.display = 'grid';
+                editGroupName.value = data.grup.name;
+                if (data.grup.icon) {
+                    editGroupIconPreview.src = data.grup.icon;
+                    editGroupIconPreview.style.display = 'block';
+                } else {
+                    editGroupIconPreview.style.display = 'none';
+                    editGroupIconPreview.src = '';
+                }
+            } else {
+                groupEditForm.style.display = 'none';
+            }
+        }
+
         renderGroupMemberOptions(data.members || []);
         renderGroupMemberList(data.members || []);
 
@@ -469,9 +494,17 @@ function grubuSec(grup, eleman) {
 
     activeChatTitle.textContent = grup.name;
     activeChatStatus.textContent = `${grup.memberCount || 0} üye`;
-    activeAvatarImg.style.display = 'none';
-    activeAvatar.style.display = 'grid';
-    activeAvatar.textContent = (grup.name || 'G').trim().charAt(0).toUpperCase();
+
+    if (grup.icon) {
+        activeAvatar.style.display = 'none';
+        activeAvatarImg.style.display = 'block';
+        activeAvatarImg.src = grup.icon;
+    } else {
+        activeAvatarImg.style.display = 'none';
+        activeAvatar.style.display = 'grid';
+        activeAvatar.textContent = (grup.name || 'G').trim().charAt(0).toUpperCase();
+    }
+
     messagesBox.innerHTML = '<div class="empty-state">Grup yükleniyor...</div>';
     grupIslemleriniGuncelle();
     sohbetSusturmaButonunuGuncelle();
@@ -641,6 +674,83 @@ avatarFileInput.addEventListener('change', () => {
     };
     okuyucu.readAsDataURL(dosya);
 });
+
+// Grup İkon Seçimi Önizlemesi
+if (editGroupIcon) {
+    editGroupIcon.addEventListener('change', () => {
+        const file = editGroupIcon.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const okuyucu = new FileReader();
+            okuyucu.onload = () => {
+                editSecilenGrupIcon = String(okuyucu.result || '');
+                editGroupIconPreview.src = editSecilenGrupIcon;
+                editGroupIconPreview.style.display = 'block';
+            };
+            okuyucu.readAsDataURL(file);
+        } else {
+            editGroupIconPreview.style.display = 'none';
+            editSecilenGrupIcon = '';
+        }
+    });
+}
+
+// Grup İsmi ve Simgesini Güncelleme Event'i
+if (groupEditForm) {
+    groupEditForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!secilenGrupId) return;
+
+        const name = editGroupName.value.trim();
+        if (!name) return alert('Grup adı boş bırakılamaz!');
+
+        const formData = new FormData();
+        formData.append('eposta', aktifKullanici);
+        formData.append('groupId', secilenGrupId);
+        formData.append('name', name);
+
+        const dosya = editGroupIcon.files && editGroupIcon.files[0];
+        if (dosya) {
+            formData.append('groupImage', dosya);
+        } else if (editSecilenGrupIcon) {
+            formData.append('icon', editSecilenGrupIcon);
+        }
+
+        try {
+            const response = await fetch('/api/grup-guncelle', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            alert(data.mesaj);
+
+            if (data.success) {
+                // Ön yüzde de seçili grubu tazele
+                secilenGrup.name = data.grup.name;
+                secilenGrup.icon = data.grup.icon;
+                secilenGrupAdi = data.grup.name;
+                activeChatTitle.textContent = data.grup.name;
+
+                if (data.grup.icon) {
+                    activeAvatar.style.display = 'none';
+                    activeAvatarImg.style.display = 'block';
+                    activeAvatarImg.src = data.grup.icon;
+                } else {
+                    activeAvatarImg.style.display = 'none';
+                    activeAvatar.style.display = 'grid';
+                    activeAvatar.textContent = data.grup.name.charAt(0).toUpperCase();
+                }
+
+                if (groupSettingsTitle) {
+                    groupSettingsTitle.textContent = `${data.grup.name} Ayarları`;
+                }
+
+                await paneliGuncelle();
+            }
+        } catch (error) {
+            console.error('Grup güncelleme başarısız:', error);
+        }
+    });
+}
 
 if (notificationPermissionBtn) {
     notificationPermissionBtn.addEventListener('click', async () => {
@@ -886,8 +996,12 @@ async function paneliGuncelle() {
                 if (secilenGrupId === grup._id) groupItem.classList.add('active');
                 if (secilenGrupId === grup._id) secilenGrup = grup;
 
+                const groupIconHtml = grup.icon 
+                    ? `<img src="${grup.icon}" class="group-badge-img" alt="${grup.name}">` 
+                    : `<div class="group-badge">${(grup.name || 'G').trim().charAt(0).toUpperCase()}</div>`;
+
                 groupItem.innerHTML = `
-                    <div class="group-badge">${(grup.name || 'G').trim().charAt(0).toUpperCase()}</div>
+                    ${groupIconHtml}
                     <div class="group-info">
                         <div class="chat-info-top">
                             <span class="chat-name">${grup.name}</span>
@@ -967,7 +1081,7 @@ groupForm.addEventListener('submit', async (e) => {
             groupNameInput.value = '';
             groupMembersInput.value = '';
             if (data.grup) {
-                grubuSec({ _id: data.grup._id, name: data.grup.name, memberCount: data.grup.memberCount || 0, creatorEposta: data.grup.creatorEposta || aktifKullanici });
+                grubuSec({ _id: data.grup._id, name: data.grup.name, icon: data.grup.icon || '', memberCount: data.grup.memberCount || 0, creatorEposta: data.grup.creatorEposta || aktifKullanici });
             }
             await paneliGuncelle();
             await mesajlariCanliGetir();

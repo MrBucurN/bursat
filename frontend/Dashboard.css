@@ -370,6 +370,15 @@ body {
   flex-shrink: 0;
 }
 
+.group-badge-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--card-border);
+}
+
 .group-info {
   flex: 1;
   overflow: hidden;
@@ -558,6 +567,12 @@ body {
   grid-template-columns: 1fr 1fr auto;
   gap: 0.75rem;
   align-items: end;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--divider);
+}
+
+.group-settings-form:last-child {
+  border-bottom: none;
 }
 
 .group-settings-form .settings-field {
@@ -567,7 +582,6 @@ body {
 .group-member-list-wrap {
   margin-top: 0.5rem;
   padding-top: 1rem;
-  border-top: 1px solid var(--divider);
 }
 
 .group-member-list-title {
@@ -944,7 +958,8 @@ body {
 
   .avatar,
   .avatar-img,
-  .group-badge {
+  .group-badge,
+  .group-badge-img {
     width: 44px;
     height: 44px;
   }
@@ -1029,6 +1044,7 @@ body {
 
   .group-settings-form {
     grid-template-columns: 1fr;
+    padding-bottom: 1.25rem;
   }
 
   .group-member-item {

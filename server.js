@@ -87,6 +87,7 @@ const Message = mongoose.model('Message', messageSchema);
 
 const groupSchema = new mongoose.Schema({
     name: { type: String, required: true },
+    icon: { type: String, default: "" },
     creatorEposta: { type: String, required: true },
     memberEpostalar: { type: [String], default: [] },
     memberRoller: { type: Object, default: {} },
@@ -260,7 +261,7 @@ async function loadGroupAccessContext(groupId, userEposta) {
 }
 
 async function resolveGroupMemberEmails(groupId) {
-    const grup = await Group.findById(groupId).select('memberEpostalar creatorEposta name').lean();
+    const grup = await Group.findById(groupId).select('memberEpostalar creatorEposta name icon').lean();
     if (!grup) {
         return { success: false, mesaj: 'Grup bulunamadı.' };
     }
@@ -649,8 +650,6 @@ app.get('/api/mesajlar-v2/:benEposta/:arkadasEposta', async (req, res) => {
 });
 
 // Güvenli Mesaj Gönderme
-// Güvenli Mesaj Gönderme (BU KISMI KOPYALAYIP ESKİSİYLE DEĞİŞTİR)
-// --- Güvenli Mesaj Gönderme ---
 app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res) => {
     try {
         const { fromEposta, toNickname, toEposta: hedefEposta, text } = req.body;
@@ -677,7 +676,7 @@ app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res)
         console.error("Mesaj gönderilemedi:", error);
         res.json({ success: false, mesaj: "Mesaj gönderilemedi!" });
     }
-}); // <--- Mesaj gönderme fonksiyonu burada düzgünce biter.
+});
 
 app.post('/api/grup-kur', async (req, res) => {
     try {
@@ -706,6 +705,7 @@ app.post('/api/grup-kur', async (req, res) => {
 
         const yeniGrup = new Group({
             name: ad,
+            icon: "",
             creatorEposta,
             memberEpostalar: cozum.epostalar,
             memberRoller: Object.fromEntries(cozum.epostalar.map((email) => [email, email === creatorEposta ? 'yonetici' : 'uye'])),
@@ -720,6 +720,7 @@ app.post('/api/grup-kur', async (req, res) => {
             grup: {
                 _id: yeniGrup._id,
                 name: yeniGrup.name,
+                icon: yeniGrup.icon,
                 memberCount: yeniGrup.memberEpostalar.length,
                 creatorEposta
             }
@@ -727,6 +728,50 @@ app.post('/api/grup-kur', async (req, res) => {
     } catch (error) {
         console.error('Grup kurma hatası:', error);
         res.json({ success: false, mesaj: 'Grup kurulamadı!' });
+    }
+});
+
+// GRUP İSMİ VE SİMGESİNİ GÜNCELLEME APİ'Sİ (Sadece Yöneticiler)
+app.post('/api/grup-guncelle', upload.single('groupImage'), async (req, res) => {
+    try {
+        const { eposta, groupId, name } = req.body;
+        const iconUrl = uploadedFileUrl(req.file) || req.body.icon || '';
+
+        if (!eposta || !groupId || !name) {
+            return res.json({ success: false, mesaj: 'Gerekli bilgiler eksik!' });
+        }
+
+        const ctx = await loadGroupAccessContext(groupId, eposta);
+        if (!ctx || !ctx.canManageRoles) {
+            return res.json({ success: false, mesaj: 'Grup ayarlarını sadece yöneticiler değiştirebilir.' });
+        }
+
+        if (ctx.role !== 'yonetici') {
+            return res.json({ success: false, mesaj: 'Grup adı ve simgesi değiştirmek için yönetici olmalısınız.' });
+        }
+
+        ctx.group.name = name.trim();
+        if (typeof iconUrl === 'string' && iconUrl) {
+            ctx.group.icon = iconUrl;
+        }
+
+        await ctx.group.save();
+
+        res.json({ 
+            success: true, 
+            mesaj: 'Grup bilgileri güncellendi! ✅',
+            grup: {
+                _id: ctx.group._id,
+                name: ctx.group.name,
+                icon: ctx.group.icon,
+                memberCount: Array.isArray(ctx.group.memberEpostalar) ? ctx.group.memberEpostalar.length : 0,
+                creatorEposta: ctx.group.creatorEposta
+            }
+        });
+
+    } catch (error) {
+        console.error('Grup güncelleme hatası:', error);
+        res.json({ success: false, mesaj: 'Grup güncellenemedi!' });
     }
 });
 
@@ -798,6 +843,7 @@ app.post('/api/grup-davet', async (req, res) => {
             grup: {
                 _id: guncelGrup._id,
                 name: guncelGrup.name,
+                icon: guncelGrup.icon,
                 memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
                 creatorEposta: guncelGrup.creatorEposta,
                 currentUserRole: getGroupMemberRole(guncelGrup, davetciEposta)
@@ -854,6 +900,7 @@ app.post('/api/gruptan-ayril', async (req, res) => {
                 grup: {
                     _id: guncelGrup._id,
                     name: guncelGrup.name,
+                    icon: guncelGrup.icon,
                     memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
                     creatorEposta: guncelGrup.creatorEposta,
                     currentUserRole: getGroupMemberRole(guncelGrup, kullaniciEposta)
@@ -885,6 +932,7 @@ app.post('/api/gruptan-ayril', async (req, res) => {
             grup: {
                 _id: guncelGrup._id,
                 name: guncelGrup.name,
+                icon: guncelGrup.icon,
                 memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
                 creatorEposta: guncelGrup.creatorEposta,
                 currentUserRole: getGroupMemberRole(guncelGrup, kullaniciEposta)
@@ -948,6 +996,7 @@ app.post('/api/gruptan-cikar', async (req, res) => {
             grup: {
                 _id: guncelGrup._id,
                 name: guncelGrup.name,
+                icon: guncelGrup.icon,
                 memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
                 creatorEposta: guncelGrup.creatorEposta,
                 currentUserRole: getGroupMemberRole(guncelGrup, yetkiliEposta)
@@ -1005,6 +1054,7 @@ app.post('/api/grup-rol-guncelle', async (req, res) => {
             grup: {
                 _id: guncelGrup._id,
                 name: guncelGrup.name,
+                icon: guncelGrup.icon,
                 memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
                 creatorEposta: guncelGrup.creatorEposta,
                 currentUserRole: getGroupMemberRole(guncelGrup, yetkiliEposta)
@@ -1067,6 +1117,7 @@ app.post('/api/grup-mute-toggle', async (req, res) => {
             grup: {
                 _id: guncelGrup._id,
                 name: guncelGrup.name,
+                icon: guncelGrup.icon,
                 memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
                 creatorEposta: guncelGrup.creatorEposta,
                 currentUserRole: getGroupMemberRole(guncelGrup, yetkiliEposta)
@@ -1107,6 +1158,7 @@ app.get('/api/grup-ayarlari/:eposta/:groupId', async (req, res) => {
             grup: {
                 _id: group._id,
                 name: group.name,
+                icon: group.icon,
                 creatorEposta: group.creatorEposta,
                 memberCount: members.length,
                 currentUserRole: role,
@@ -1134,6 +1186,7 @@ app.get('/api/gruplar/:eposta', async (req, res) => {
             gruplar: gruplar.map((grup) => ({
                 _id: grup._id,
                 name: grup.name,
+                icon: grup.icon,
                 creatorEposta: grup.creatorEposta,
                 memberCount: Array.isArray(grup.memberEpostalar) ? grup.memberEpostalar.length : 0,
                 currentUserRole: getGroupMemberRole(grup, kullaniciEposta)
@@ -1338,7 +1391,7 @@ app.post('/api/grup-mesaj-gonder', upload.single('messageImage'), async (req, re
     }
 });
 
-// --- Hata Yönetimi (Bu bloğu yukarıdaki app.post'un DIŞINA çıkardık) ---
+// --- Hata Yönetimi ---
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -1352,6 +1405,5 @@ app.use((err, req, res, next) => {
     next();
 });
 
-// PORT ayarların en altta kalmaya devam edecek
 const PORT = 3000;
 app.listen(PORT, () => console.log(`\n🚀 Sunucu http://localhost:${PORT} adresinde aktif!`));
