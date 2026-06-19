@@ -40,6 +40,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
 }
 
 .bursat-logo {
@@ -75,6 +76,132 @@ body {
   border-color: #ef4444;
   color: #ef4444;
   background: rgba(239, 68, 68, 0.05);
+}
+
+.sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.notification-btn,
+.icon-action-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  position: relative;
+  font: inherit;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.notification-btn:hover,
+.icon-action-btn:hover {
+  background: var(--input-focus-bg);
+  transform: translateY(-1px);
+}
+
+.notification-btn.is-denied {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.icon-action-btn.is-muted {
+  border-color: rgba(234, 179, 8, 0.45);
+  color: #eab308;
+}
+
+.notification-badge,
+.muted-chat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+}
+
+.muted-chat-badge {
+  background: rgba(234, 179, 8, 0.16);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
+.notification-panel {
+  padding: 0.85rem 1.5rem;
+  border-bottom: 1px solid var(--divider);
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.notification-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.notification-panel-head button {
+  border: 1px solid var(--card-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border-radius: 9px;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: none;
+}
+
+.notification-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+}
+
+.notification-item-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.86rem;
+  margin-bottom: 0.25rem;
+}
+
+.notification-item-body {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .friend-add-area {
@@ -328,8 +455,14 @@ body {
 
 .chat-area { flex: 1; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.01); min-width: 0; }
 .chat-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--divider); display: flex; align-items: center; gap: 1rem; background: var(--card-bg); }
-.chat-header-info { min-width: 0; }
+.chat-header-info { flex: 1; min-width: 0; }
 .chat-status { font-size: 0.8rem; color: var(--text-muted); }
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
 .group-actions {
   padding: 0.85rem 1.5rem;
   border-bottom: 1px solid var(--divider);
@@ -737,11 +870,16 @@ body {
 
   .bursat-logo {
     font-size: 1.25rem;
+    min-width: 0;
   }
 
   .logout-btn {
     padding: 0.55rem 0.75rem;
     border-radius: 10px;
+  }
+
+  .notification-panel {
+    padding: 0.75rem 1rem;
   }
 
   .friend-add-area {
@@ -827,12 +965,14 @@ body {
   }
 
   .bursat-container.chat-is-open #chat-main-area,
-  .bursat-container.settings-is-open #settings-main-area {
+  .bursat-container.settings-is-open #settings-main-area,
+  .bursat-container.settings-is-open #group-settings-main-area {
     transform: translateX(0);
     pointer-events: auto;
   }
 
-  .bursat-container.settings-is-open #settings-main-area {
+  .bursat-container.settings-is-open #settings-main-area,
+  .bursat-container.settings-is-open #group-settings-main-area {
     z-index: 3;
   }
 
@@ -848,6 +988,16 @@ body {
   .chat-header {
     padding: calc(0.75rem + env(safe-area-inset-top)) 0.9rem 0.75rem;
     gap: 0.65rem;
+  }
+
+  .chat-header-actions {
+    gap: 0.35rem;
+  }
+
+  .icon-action-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
   }
 
   .group-actions {
@@ -872,7 +1022,7 @@ body {
 
   .group-settings-card {
     max-width: none;
-    margin: auto 0;
+    margin: 0;
     padding: 1.25rem;
     border-radius: 18px;
   }
@@ -883,6 +1033,7 @@ body {
 
   .group-member-item {
     align-items: flex-start;
+    flex-direction: column;
   }
 
   .group-member-actions {

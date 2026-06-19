@@ -1,9 +1,13 @@
-require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+
+require('dotenv').config();
+if (!process.env.MONGO_URI) {
+    require('dotenv').config({ path: path.join(__dirname, '.gitignore', '.env') });
+}
 
 const app = express();
 const uploadDir = path.join(__dirname, 'uploads');
@@ -105,6 +109,23 @@ const groupMessageSchema = new mongoose.Schema({
 }, { timestamps: true });
 groupMessageSchema.index({ groupId: 1, createdAt: -1 });
 const GroupMessage = mongoose.model('GroupMessage', groupMessageSchema);
+
+const notificationSchema = new mongoose.Schema({
+    recipientEposta: { type: String, required: true, index: true },
+    type: { type: String, required: true },
+    title: String,
+    body: String,
+    fromEposta: String,
+    fromNickname: String,
+    groupId: String,
+    groupName: String,
+    messageId: String,
+    read: { type: Boolean, default: false },
+    deliveredAt: { type: Date, default: null }
+}, { timestamps: true });
+notificationSchema.index({ recipientEposta: 1, read: 1, createdAt: -1 });
+notificationSchema.index({ recipientEposta: 1, deliveredAt: 1 });
+const UserNotification = mongoose.model('Notification', notificationSchema);
 
 async function resolveUserEmailsFromTokens(tokens, creatorEposta) {
     const epostalar = new Set();
@@ -283,6 +304,83 @@ async function deleteGroupIfEmpty(groupId) {
     return false;
 }
 
+function bildirimMetniOlustur(text, image) {
+    const temizMetin = String(text || '').trim();
+    if (temizMetin) {
+        return temizMetin.length > 120 ? `${temizMetin.slice(0, 117)}...` : temizMetin;
+    }
+
+    return image ? 'Fotoğraf gönderildi.' : 'Yeni mesajınız var.';
+}
+
+function listedeVarMi(liste, deger) {
+    const hedef = normalizeEmail(deger);
+    return Array.isArray(liste) && liste.map(normalizeEmail).includes(hedef);
+}
+
+function grupSusturulmusMu(liste, groupId) {
+    const hedef = String(groupId || '');
+    return Array.isArray(liste) && liste.map(String).includes(hedef);
+}
+
+async function ozelMesajBildirimiOlustur(mesaj, aliciEposta) {
+    const recipientEposta = normalizeEmail(aliciEposta);
+    if (!recipientEposta || recipientEposta === normalizeEmail(mesaj.from)) return;
+
+    const alici = await User.findOne({ username: recipientEposta }).select('username mutedPrivateEpostalar').lean();
+    if (!alici || listedeVarMi(alici.mutedPrivateEpostalar, mesaj.from)) return;
+
+    await UserNotification.create({
+        recipientEposta,
+        type: 'private-message',
+        title: mesaj.fromNickname || 'Yeni mesaj',
+        body: bildirimMetniOlustur(mesaj.text, mesaj.image),
+        fromEposta: normalizeEmail(mesaj.from),
+        fromNickname: mesaj.fromNickname || '',
+        messageId: String(mesaj._id)
+    });
+}
+
+async function grupMesajBildirimleriOlustur(mesaj, grup) {
+    if (!grup || !Array.isArray(grup.memberEpostalar)) return;
+
+    const groupId = String(grup._id);
+    const gonderenEposta = normalizeEmail(mesaj.from);
+    const alicilar = grup.memberEpostalar
+        .map(normalizeEmail)
+        .filter((email) => email && email !== gonderenEposta);
+
+    if (alicilar.length === 0) return;
+
+    const kullanicilar = await User.find({ username: { $in: alicilar } })
+        .select('username mutedGroupIds')
+        .lean();
+
+    const kullaniciMap = new Map(kullanicilar.map((kullanici) => [normalizeEmail(kullanici.username), kullanici]));
+    const body = bildirimMetniOlustur(mesaj.text, mesaj.image);
+
+    const bildirilecekler = alicilar
+        .filter((email) => {
+            const kullanici = kullaniciMap.get(email);
+            return kullanici && !grupSusturulmusMu(kullanici.mutedGroupIds, groupId);
+        })
+        .map((email) => ({
+            recipientEposta: email,
+            type: 'group-message',
+            title: `${grup.name} - ${mesaj.fromNickname || 'Yeni mesaj'}`,
+            body,
+            fromEposta: gonderenEposta,
+            fromNickname: mesaj.fromNickname || '',
+            groupId,
+            groupName: grup.name,
+            messageId: String(mesaj._id)
+        }));
+
+    if (bildirilecekler.length > 0) {
+        await UserNotification.insertMany(bildirilecekler);
+    }
+}
+
 // --- ENDPOINT'LER ---
 
 // Kullanıcı Kaydı
@@ -441,6 +539,14 @@ app.post('/api/arkadas-ekle', async (req, res) => {
 
         const yeniArkadaslik = new Friendship({ gonderen: gonderenNick, alan: hedef.nickname, durum: 'beklemede' });
         await yeniArkadaslik.save();
+        await UserNotification.create({
+            recipientEposta: hedef.username,
+            type: 'friend-request',
+            title: 'Yeni arkadaşlık isteği',
+            body: `${gonderenNick} size arkadaşlık isteği gönderdi.`,
+            fromEposta: gonderenEposta,
+            fromNickname: gonderenNick
+        });
         
         res.json({ success: true, mesaj: "Arkadaşlık isteği başarıyla gönderildi! 🔔" });
     } catch (error) {
@@ -569,6 +675,7 @@ app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res)
         });
 
         await yeniMesaj.save();
+        await ozelMesajBildirimiOlustur(yeniMesaj, aliciEposta);
         res.json({ success: true, yeniMesaj });
     } catch (error) {
         console.error("Mesaj gönderilemedi:", error);
@@ -665,11 +772,28 @@ app.post('/api/grup-davet', async (req, res) => {
             return res.json({ success: false, mesaj: 'Davet edilecek yeni üye bulunamadı.' });
         }
 
-        await Group.findByIdAndUpdate(groupId, {
-            $addToSet: { memberEpostalar: { $each: eklenecekler } },
-            $set: Object.fromEntries(eklenecekler.map((email) => [`memberRoller.${email}`, 'uye'])),
-            $set: { updatedAt: new Date() }
-        });
+        const memberSet = new Set(group.memberEpostalar.map(normalizeEmail));
+        const memberRoller = group.memberRoller && typeof group.memberRoller === 'object' ? { ...group.memberRoller } : {};
+
+        for (const email of eklenecekler) {
+            memberSet.add(email);
+            memberRoller[email] = 'uye';
+        }
+
+        group.memberEpostalar = Array.from(memberSet);
+        group.memberRoller = memberRoller;
+        group.markModified('memberRoller');
+        await group.save();
+
+        await UserNotification.insertMany(eklenecekler.map((email) => ({
+            recipientEposta: email,
+            type: 'group-invite',
+            title: group.name,
+            body: 'Gruba eklendiniz.',
+            fromEposta: davetciEposta,
+            groupId: String(group._id),
+            groupName: group.name
+        })));
 
         const guncelGrup = await loadGroupWithDefaults(groupId);
         return res.json({
@@ -741,11 +865,16 @@ app.post('/api/gruptan-ayril', async (req, res) => {
             });
         }
 
+        const kalanlar = group.memberEpostalar.filter((email) => normalizeEmail(email) !== kullaniciEposta);
+        const memberRoller = Object.fromEntries(kalanlar.map((email) => [email, group.memberRoller?.[email] || 'uye']));
+
         await Group.findByIdAndUpdate(groupId, {
-            $pull: { memberEpostalar: kullaniciEposta },
-            $unset: { [`memberRoller.${kullaniciEposta}`]: 1 },
-            $pull: { mutedMemberEpostalar: kullaniciEposta },
-            $set: { updatedAt: new Date() }
+            $set: {
+                memberEpostalar: kalanlar,
+                memberRoller,
+                mutedMemberEpostalar: (group.mutedMemberEpostalar || []).filter((email) => kalanlar.includes(email)),
+                updatedAt: new Date()
+            }
         });
 
         const deleted = await deleteGroupIfEmpty(groupId);
@@ -799,11 +928,16 @@ app.post('/api/gruptan-cikar', async (req, res) => {
             return res.json({ success: false, mesaj: 'Yönetici çıkarılamaz. Önce gruptan ayrılmalısınız.' });
         }
 
+        const kalanlar = group.memberEpostalar.filter((email) => normalizeEmail(email) !== hedefEposta);
+        const memberRoller = Object.fromEntries(kalanlar.map((email) => [email, group.memberRoller?.[email] || 'uye']));
+
         await Group.findByIdAndUpdate(groupId, {
-            $pull: { memberEpostalar: hedefEposta },
-            $unset: { [`memberRoller.${hedefEposta}`]: 1 },
-            $pull: { mutedMemberEpostalar: hedefEposta },
-            $set: { updatedAt: new Date() }
+            $set: {
+                memberEpostalar: kalanlar,
+                memberRoller,
+                mutedMemberEpostalar: (group.mutedMemberEpostalar || []).filter((email) => kalanlar.includes(email)),
+                updatedAt: new Date()
+            }
         });
 
         const deleted = await deleteGroupIfEmpty(groupId);
@@ -1014,6 +1148,141 @@ app.get('/api/gruplar/:eposta', async (req, res) => {
     }
 });
 
+app.get('/api/bildirim-ayarlar/:eposta', async (req, res) => {
+    try {
+        const kullaniciEposta = normalizeEmail(req.params.eposta);
+        const kullanici = await User.findOne({ username: kullaniciEposta })
+            .select('mutedPrivateEpostalar mutedGroupIds')
+            .lean();
+
+        if (!kullanici) {
+            return res.json({ success: false, mesaj: 'Kullanıcı bulunamadı.' });
+        }
+
+        res.json({
+            success: true,
+            mutedPrivateEpostalar: (kullanici.mutedPrivateEpostalar || []).map(normalizeEmail),
+            mutedGroupIds: (kullanici.mutedGroupIds || []).map(String)
+        });
+    } catch (error) {
+        res.json({ success: false, mesaj: 'Bildirim ayarları alınamadı.' });
+    }
+});
+
+app.post('/api/bildirim-sustur', async (req, res) => {
+    try {
+        const { eposta, type, target, muted } = req.body;
+        const kullaniciEposta = normalizeEmail(eposta);
+        const sustur = muted === true || muted === 'true' || muted === 1 || muted === '1';
+        const kullanici = await User.findOne({ username: kullaniciEposta });
+
+        if (!kullanici) {
+            return res.json({ success: false, mesaj: 'Kullanıcı bulunamadı.' });
+        }
+
+        if (type === 'private') {
+            const hedefEposta = await resolveUserEmail(target);
+            if (!hedefEposta) {
+                return res.json({ success: false, mesaj: 'Susturulacak kişi bulunamadı.' });
+            }
+
+            if (normalizeEmail(hedefEposta) === kullaniciEposta) {
+                return res.json({ success: false, mesaj: 'Kendi bildirimlerinizi kişi olarak susturamazsınız.' });
+            }
+
+            const mutedSet = new Set((kullanici.mutedPrivateEpostalar || []).map(normalizeEmail));
+            if (sustur) mutedSet.add(normalizeEmail(hedefEposta)); else mutedSet.delete(normalizeEmail(hedefEposta));
+            kullanici.mutedPrivateEpostalar = Array.from(mutedSet);
+        } else if (type === 'group') {
+            const ctx = await loadGroupAccessContext(target, kullaniciEposta);
+            if (!ctx) {
+                return res.json({ success: false, mesaj: 'Grup bulunamadı veya erişiminiz yok.' });
+            }
+
+            const groupId = String(ctx.group._id);
+            const mutedSet = new Set((kullanici.mutedGroupIds || []).map(String));
+            if (sustur) mutedSet.add(groupId); else mutedSet.delete(groupId);
+            kullanici.mutedGroupIds = Array.from(mutedSet);
+        } else {
+            return res.json({ success: false, mesaj: 'Geçersiz bildirim susturma isteği.' });
+        }
+
+        await kullanici.save();
+
+        res.json({
+            success: true,
+            mesaj: sustur ? 'Bildirimler susturuldu.' : 'Bildirimler açıldı.',
+            mutedPrivateEpostalar: (kullanici.mutedPrivateEpostalar || []).map(normalizeEmail),
+            mutedGroupIds: (kullanici.mutedGroupIds || []).map(String)
+        });
+    } catch (error) {
+        console.error('Bildirim susturma hatası:', error);
+        res.json({ success: false, mesaj: 'Bildirim ayarı güncellenemedi.' });
+    }
+});
+
+app.get('/api/bildirimler/:eposta', async (req, res) => {
+    try {
+        const kullaniciEposta = normalizeEmail(req.params.eposta);
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 15, 1), 50);
+
+        const bildirimler = await UserNotification.find({ recipientEposta: kullaniciEposta, read: false })
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
+
+        const yeniBildirimIds = bildirimler
+            .filter((bildirim) => !bildirim.deliveredAt)
+            .map((bildirim) => bildirim._id);
+
+        if (yeniBildirimIds.length > 0) {
+            await UserNotification.updateMany(
+                { _id: { $in: yeniBildirimIds }, recipientEposta: kullaniciEposta },
+                { $set: { deliveredAt: new Date() } }
+            );
+        }
+
+        const unreadCount = await UserNotification.countDocuments({ recipientEposta: kullaniciEposta, read: false });
+
+        res.json({
+            success: true,
+            unreadCount,
+            notifications: bildirimler.map((bildirim) => ({
+                _id: bildirim._id,
+                type: bildirim.type,
+                title: bildirim.title,
+                body: bildirim.body,
+                fromEposta: bildirim.fromEposta,
+                fromNickname: bildirim.fromNickname,
+                groupId: bildirim.groupId,
+                groupName: bildirim.groupName,
+                createdAt: bildirim.createdAt,
+                newForDevice: !bildirim.deliveredAt
+            }))
+        });
+    } catch (error) {
+        console.error('Bildirimler alınamadı:', error);
+        res.json({ success: false, unreadCount: 0, notifications: [] });
+    }
+});
+
+app.post('/api/bildirim-okundu', async (req, res) => {
+    try {
+        const kullaniciEposta = normalizeEmail(req.body.eposta);
+        const notificationId = req.body.notificationId;
+        const sorgu = { recipientEposta: kullaniciEposta, read: false };
+
+        if (notificationId) {
+            sorgu._id = notificationId;
+        }
+
+        await UserNotification.updateMany(sorgu, { $set: { read: true } });
+        res.json({ success: true, mesaj: 'Bildirimler okundu.' });
+    } catch (error) {
+        res.json({ success: false, mesaj: 'Bildirimler güncellenemedi.' });
+    }
+});
+
 app.get('/api/grup-mesajlari/:benEposta/:groupId', async (req, res) => {
     try {
         const { benEposta, groupId } = req.params;
@@ -1063,7 +1332,8 @@ app.post('/api/grup-mesaj-gonder', upload.single('messageImage'), async (req, re
         });
 
         await yeniMesaj.save();
-    await Group.findByIdAndUpdate(groupId, { $set: { updatedAt: new Date() } });
+        await Group.findByIdAndUpdate(groupId, { $set: { updatedAt: new Date() } });
+        await grupMesajBildirimleriOlustur(yeniMesaj, grup);
 
         res.json({ success: true, yeniMesaj });
     } catch (error) {
@@ -1087,5 +1357,5 @@ app.use((err, req, res, next) => {
 });
 
 // PORT ayarların en altta kalmaya devam edecek
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`\n🚀 Sunucu http://localhost:${PORT} adresinde aktif!`));

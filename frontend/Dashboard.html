@@ -24,7 +24,23 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="bursat-logo"><span>✦</span> Bursat</div>
-                <button class="logout-btn" id="logout-button">Çıkış</button>
+                <div class="sidebar-actions">
+                    <button type="button" class="notification-btn" id="notification-permission-btn" aria-label="Bildirimler" title="Bildirimler">
+                        🔔
+                        <span class="notification-badge" id="notification-badge" style="display:none;">0</span>
+                    </button>
+                    <button class="logout-btn" id="logout-button">Çıkış</button>
+                </div>
+            </div>
+
+            <div class="notification-panel" id="notification-panel" hidden>
+                <div class="notification-panel-head">
+                    <span>Bildirimler</span>
+                    <button type="button" id="clear-notifications-btn">Okundu</button>
+                </div>
+                <div class="notification-list" id="notification-list">
+                    <div class="empty-state">Yeni bildirim yok.</div>
+                </div>
             </div>
 
             <div class="friend-add-area">
@@ -74,6 +90,9 @@
                 <div class="chat-header-info">
                     <div class="chat-name" id="active-chat-title">Bir sohbet seçin</div>
                     <div class="chat-status" id="active-chat-status">Bursat Mesajlaşma</div>
+                </div>
+                <div class="chat-header-actions">
+                    <button type="button" class="icon-action-btn" id="chat-mute-btn" aria-label="Sohbet bildirimlerini sustur" title="Sohbet bildirimlerini sustur" style="display:none;">🔕</button>
                 </div>
             </div>
 

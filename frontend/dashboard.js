@@ -22,6 +22,10 @@ let sohbetTipi = 'private';
 const ilkSohbetMesajLimiti = 20;
 const sohbetYenilemeAraligiMs = 2000;
 const panelYenilemeAraligiMs = 10000;
+const bildirimYenilemeAraligiMs = 4000;
+let bildirimAyarlar = { mutedPrivateEpostalar: [], mutedGroupIds: [] };
+let sonArkadasListeAnahtari = '';
+let sonBildirimler = [];
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -71,6 +75,186 @@ const groupMemberList = document.getElementById('group-member-list');
 const messagesBox = document.getElementById('messages-box');
 const chatForm = document.getElementById('chat-form');
 const msgInput = document.getElementById('msg-input');
+const notificationPermissionBtn = document.getElementById('notification-permission-btn');
+const notificationBadge = document.getElementById('notification-badge');
+const notificationPanel = document.getElementById('notification-panel');
+const notificationList = document.getElementById('notification-list');
+const clearNotificationsBtn = document.getElementById('clear-notifications-btn');
+const chatMuteBtn = document.getElementById('chat-mute-btn');
+
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function ozelBildirimSusturulduMu(eposta) {
+    const hedef = normalizeEmail(eposta);
+    return !!hedef && bildirimAyarlar.mutedPrivateEpostalar.map(normalizeEmail).includes(hedef);
+}
+
+function grupBildirimSusturulduMu(groupId) {
+    const hedef = String(groupId || '');
+    return !!hedef && bildirimAyarlar.mutedGroupIds.map(String).includes(hedef);
+}
+
+function aktifSohbetSusturulduMu() {
+    if (sohbetTipi === 'group') {
+        return grupBildirimSusturulduMu(secilenGrupId);
+    }
+
+    return ozelBildirimSusturulduMu(secilenAliciEposta);
+}
+
+function bildirimButonunuGuncelle() {
+    if (!notificationPermissionBtn) return;
+
+    const destekleniyor = 'Notification' in window;
+    notificationPermissionBtn.disabled = !destekleniyor;
+    notificationPermissionBtn.classList.toggle('is-denied', destekleniyor && Notification.permission === 'denied');
+    notificationPermissionBtn.title = destekleniyor
+        ? (Notification.permission === 'granted' ? 'Bildirimler açık' : 'Bildirim izni ver')
+        : 'Bu tarayıcı bildirimleri desteklemiyor';
+}
+
+function sohbetSusturmaButonunuGuncelle() {
+    if (!chatMuteBtn) return;
+
+    const seciliSohbetVar = sohbetTipi === 'group' ? !!secilenGrupId : !!secilenAliciEposta;
+    if (!seciliSohbetVar) {
+        chatMuteBtn.style.display = 'none';
+        return;
+    }
+
+    const susturuldu = aktifSohbetSusturulduMu();
+    chatMuteBtn.style.display = 'grid';
+    chatMuteBtn.classList.toggle('is-muted', susturuldu);
+    chatMuteBtn.textContent = susturuldu ? '🔔' : '🔕';
+    chatMuteBtn.title = susturuldu ? 'Bu sohbetin bildirimlerini aç' : 'Bu sohbetin bildirimlerini sustur';
+    chatMuteBtn.setAttribute('aria-label', chatMuteBtn.title);
+}
+
+function bildirimleriCiz(bildirimler, unreadCount) {
+    sonBildirimler = Array.isArray(bildirimler) ? bildirimler : [];
+
+    if (notificationBadge) {
+        if (unreadCount > 0) {
+            notificationBadge.style.display = 'inline-flex';
+            notificationBadge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+        } else {
+            notificationBadge.style.display = 'none';
+            notificationBadge.textContent = '0';
+        }
+    }
+
+    if (!notificationList) return;
+
+    notificationList.innerHTML = '';
+    if (sonBildirimler.length === 0) {
+        notificationList.innerHTML = '<div class="empty-state">Yeni bildirim yok.</div>';
+        return;
+    }
+
+    sonBildirimler.forEach((bildirim) => {
+        const item = document.createElement('div');
+        item.className = 'notification-item';
+        item.dataset.notificationId = bildirim._id || '';
+
+        const title = document.createElement('div');
+        title.className = 'notification-item-title';
+        title.textContent = bildirim.title || 'Bildirim';
+
+        const body = document.createElement('div');
+        body.className = 'notification-item-body';
+        body.textContent = bildirim.body || '';
+
+        item.appendChild(title);
+        item.appendChild(body);
+        notificationList.appendChild(item);
+    });
+}
+
+function tarayiciBildirimiGoster(bildirim) {
+    if (!('Notification' in window) || Notification.permission !== 'granted' || !bildirim.newForDevice) {
+        return;
+    }
+
+    const browserNotification = new Notification(bildirim.title || 'Bursat', {
+        body: bildirim.body || 'Yeni bildirim',
+        tag: bildirim._id || `${bildirim.type}-${Date.now()}`,
+        silent: false
+    });
+
+    browserNotification.onclick = () => {
+        window.focus();
+        browserNotification.close();
+    };
+}
+
+async function bildirimAyarlariniYukle() {
+    try {
+        const response = await fetch(`/api/bildirim-ayarlar/${aktifKullanici}`);
+        const data = await response.json();
+
+        if (data.success) {
+            bildirimAyarlar = {
+                mutedPrivateEpostalar: (data.mutedPrivateEpostalar || []).map(normalizeEmail),
+                mutedGroupIds: (data.mutedGroupIds || []).map(String)
+            };
+            sohbetSusturmaButonunuGuncelle();
+        }
+    } catch (error) {
+        console.error('Bildirim ayarları alınamadı:', error);
+    }
+}
+
+async function bildirimleriYokla() {
+    try {
+        const response = await fetch(`/api/bildirimler/${aktifKullanici}?limit=15`);
+        const data = await response.json();
+
+        if (data.success) {
+            (data.notifications || []).forEach(tarayiciBildirimiGoster);
+            bildirimleriCiz(data.notifications || [], data.unreadCount || 0);
+        }
+    } catch (error) {
+        console.error('Bildirimler alınamadı:', error);
+    }
+}
+
+async function seciliSohbetBildirimSusturmaGuncelle() {
+    if (!chatMuteBtn) return;
+
+    const type = sohbetTipi === 'group' ? 'group' : 'private';
+    const target = type === 'group' ? secilenGrupId : secilenAliciEposta;
+    if (!target) return;
+
+    const muted = !aktifSohbetSusturulduMu();
+    chatMuteBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/bildirim-sustur', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eposta: aktifKullanici, type, target, muted })
+        });
+        const data = await response.json();
+
+        if (!data.success) {
+            alert(data.mesaj || 'Bildirim ayarı güncellenemedi.');
+            return;
+        }
+
+        bildirimAyarlar = {
+            mutedPrivateEpostalar: (data.mutedPrivateEpostalar || []).map(normalizeEmail),
+            mutedGroupIds: (data.mutedGroupIds || []).map(String)
+        };
+        sohbetSusturmaButonunuGuncelle();
+        await paneliGuncelle();
+    } catch (error) {
+        console.error('Bildirim susturma güncellenemedi:', error);
+    } finally {
+        chatMuteBtn.disabled = false;
+    }
+}
 
 function listeEkraniniAc() {
     bursatContainer.classList.remove('chat-is-open', 'settings-is-open');
@@ -149,6 +333,7 @@ function sohbetPenceresiniSifirla() {
     activeAvatar.textContent = '?';
     messagesBox.innerHTML = '<div class="message incoming" style="align-self: center; border-radius: 12px; font-size: 0.85rem; background: var(--input-bg); opacity: 0.7;">Sohbete başlamak için soldan bir arkadaş seçin veya sağ alttaki ⚙️ simgesinden profilinizi düzenleyin!</div>';
     grupIslemleriniGuncelle();
+    sohbetSusturmaButonunuGuncelle();
 }
 
 function roleLabel(role) {
@@ -289,6 +474,7 @@ function grubuSec(grup, eleman) {
     activeAvatar.textContent = (grup.name || 'G').trim().charAt(0).toUpperCase();
     messagesBox.innerHTML = '<div class="empty-state">Grup yükleniyor...</div>';
     grupIslemleriniGuncelle();
+    sohbetSusturmaButonunuGuncelle();
 }
 
 function ozelSohbetiSec(arkadasNickname, arkadasEposta, avatar, status, eleman) {
@@ -321,6 +507,7 @@ function ozelSohbetiSec(arkadasNickname, arkadasEposta, avatar, status, eleman) 
     }
 
     grupIslemleriniGuncelle();
+    sohbetSusturmaButonunuGuncelle();
 }
 
 function seciliAvatarYukle() {
@@ -454,6 +641,60 @@ avatarFileInput.addEventListener('change', () => {
     };
     okuyucu.readAsDataURL(dosya);
 });
+
+if (notificationPermissionBtn) {
+    notificationPermissionBtn.addEventListener('click', async () => {
+        if (notificationPanel) {
+            notificationPanel.hidden = !notificationPanel.hidden;
+        }
+
+        if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+            bildirimButonunuGuncelle();
+        }
+
+        await bildirimleriYokla();
+    });
+}
+
+if (clearNotificationsBtn) {
+    clearNotificationsBtn.addEventListener('click', async () => {
+        try {
+            await fetch('/api/bildirim-okundu', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici })
+            });
+            bildirimleriCiz([], 0);
+        } catch (error) {
+            console.error('Bildirimler okundu yapılamadı:', error);
+        }
+    });
+}
+
+if (notificationList) {
+    notificationList.addEventListener('click', async (e) => {
+        const item = e.target.closest('.notification-item');
+        if (!item) return;
+
+        const notificationId = item.dataset.notificationId;
+        try {
+            await fetch('/api/bildirim-okundu', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici, notificationId })
+            });
+            item.remove();
+            await bildirimleriYokla();
+        } catch (error) {
+            console.error('Bildirim okundu yapılamadı:', error);
+        }
+    });
+}
+
+if (chatMuteBtn) {
+    chatMuteBtn.addEventListener('click', seciliSohbetBildirimSusturmaGuncelle);
+}
 
 // --- PANELLER ARASI GEÇİŞ (AYARLAR MANTIĞI) ---
 openSettingsBtn.addEventListener('click', () => {
@@ -593,7 +834,16 @@ async function paneliGuncelle() {
         // B. Onaylı Arkadaşlar Listesini Çiz (Detaylı resimli/durumlu)
         const mevcutElemanSayisi = dynamicChatList.querySelectorAll('.chat-item').length;
         if (data.arkadaslar && data.arkadaslar.length > 0) {
-            if (mevcutElemanSayisi !== data.arkadaslar.length) {
+            const arkadasListeAnahtari = JSON.stringify(data.arkadaslar.map((arkadas) => [
+                arkadas.nickname,
+                arkadas.username,
+                arkadas.avatar || '',
+                arkadas.status || '',
+                ozelBildirimSusturulduMu(arkadas.username)
+            ]));
+
+            if (mevcutElemanSayisi !== data.arkadaslar.length || sonArkadasListeAnahtari !== arkadasListeAnahtari) {
+                sonArkadasListeAnahtari = arkadasListeAnahtari;
                 dynamicChatList.innerHTML = '';
                 data.arkadaslar.forEach(arkadas => {
                     const chatItem = document.createElement('div');
@@ -601,12 +851,14 @@ async function paneliGuncelle() {
                     if (secilenAliciNickname === arkadas.nickname) chatItem.classList.add('active');
                     
                     const imgUrl = arkadas.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${arkadas.nickname}`;
+                    const susturuldu = ozelBildirimSusturulduMu(arkadas.username);
                     
                     chatItem.innerHTML = `
                         <img src="${imgUrl}" class="avatar-img" alt="avatar">
                         <div class="chat-info">
                             <div class="chat-info-top">
                                 <span class="chat-name">${arkadas.nickname}</span>
+                                ${susturuldu ? '<span class="muted-chat-badge">Susturuldu</span>' : ''}
                             </div>
                             <span class="chat-preview" id="preview-${arkadas.nickname}">${arkadas.status || "Sohbet etmek için tıklayın..."}</span>
                         </div>
@@ -631,6 +883,7 @@ async function paneliGuncelle() {
                 });
             }
         } else {
+            sonArkadasListeAnahtari = '';
             dynamicChatList.innerHTML = '<div class="empty-state">Henüz hiç arkadaşınız yok. Üstten ekleyin!</div>';
         }
 
@@ -644,12 +897,14 @@ async function paneliGuncelle() {
                 groupItem.className = 'group-item';
                 if (secilenGrupId === grup._id) groupItem.classList.add('active');
                 if (secilenGrupId === grup._id) secilenGrup = grup;
+                const susturuldu = grupBildirimSusturulduMu(grup._id);
 
                 groupItem.innerHTML = `
                     <div class="group-badge">${(grup.name || 'G').trim().charAt(0).toUpperCase()}</div>
                     <div class="group-info">
                         <div class="chat-info-top">
                             <span class="chat-name">${grup.name}</span>
+                            ${susturuldu ? '<span class="muted-chat-badge">Susturuldu</span>' : ''}
                         </div>
                         <div class="group-meta">${grup.memberCount || 0} üye</div>
                     </div>
@@ -672,6 +927,7 @@ async function paneliGuncelle() {
         }
 
         grupIslemleriniGuncelle();
+        sohbetSusturmaButonunuGuncelle();
 
         if (sohbetTipi === 'group' && secilenGrupId && !(groupData.gruplar || []).some((grup) => String(grup._id) === String(secilenGrupId))) {
             sohbetPenceresiniSifirla();
@@ -1202,6 +1458,7 @@ chatForm.addEventListener('submit', async (e) => {
 // --- 7. ZAMANLAYICI MOTORU ---
 let yenilemeDongusuAktif = false;
 let panelYenilemeDongusuAktif = false;
+let bildirimYenilemeDongusuAktif = false;
 
 async function yenilemeDongusu() {
     if (yenilemeDongusuAktif) return;
@@ -1230,5 +1487,21 @@ async function panelYenilemeDongusu() {
     }
 }
 
+async function bildirimYenilemeDongusu() {
+    if (bildirimYenilemeDongusuAktif) return;
+
+    bildirimYenilemeDongusuAktif = true;
+
+    try {
+        await bildirimleriYokla();
+    } finally {
+        bildirimYenilemeDongusuAktif = false;
+        setTimeout(bildirimYenilemeDongusu, bildirimYenilemeAraligiMs);
+    }
+}
+
+bildirimButonunuGuncelle();
+bildirimAyarlariniYukle().then(() => paneliGuncelle());
+bildirimYenilemeDongusu();
 panelYenilemeDongusu();
 yenilemeDongusu();

@@ -22,6 +22,14 @@ const userSchema = new mongoose.Schema({
   status: { 
     type: String, 
     default: "" 
+  },
+  mutedPrivateEpostalar: {
+    type: [String],
+    default: []
+  },
+  mutedGroupIds: {
+    type: [String],
+    default: []
   }
 }, { timestamps: true }); // Ne zaman kayıt olduklarını otomatik kaydeder
 
