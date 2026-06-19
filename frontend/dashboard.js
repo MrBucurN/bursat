@@ -834,16 +834,7 @@ async function paneliGuncelle() {
         // B. Onaylı Arkadaşlar Listesini Çiz (Detaylı resimli/durumlu)
         const mevcutElemanSayisi = dynamicChatList.querySelectorAll('.chat-item').length;
         if (data.arkadaslar && data.arkadaslar.length > 0) {
-            const arkadasListeAnahtari = JSON.stringify(data.arkadaslar.map((arkadas) => [
-                arkadas.nickname,
-                arkadas.username,
-                arkadas.avatar || '',
-                arkadas.status || '',
-                ozelBildirimSusturulduMu(arkadas.username)
-            ]));
-
-            if (mevcutElemanSayisi !== data.arkadaslar.length || sonArkadasListeAnahtari !== arkadasListeAnahtari) {
-                sonArkadasListeAnahtari = arkadasListeAnahtari;
+            if (mevcutElemanSayisi !== data.arkadaslar.length) {
                 dynamicChatList.innerHTML = '';
                 data.arkadaslar.forEach(arkadas => {
                     const chatItem = document.createElement('div');
@@ -851,14 +842,12 @@ async function paneliGuncelle() {
                     if (secilenAliciNickname === arkadas.nickname) chatItem.classList.add('active');
                     
                     const imgUrl = arkadas.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${arkadas.nickname}`;
-                    const susturuldu = ozelBildirimSusturulduMu(arkadas.username);
                     
                     chatItem.innerHTML = `
                         <img src="${imgUrl}" class="avatar-img" alt="avatar">
                         <div class="chat-info">
                             <div class="chat-info-top">
                                 <span class="chat-name">${arkadas.nickname}</span>
-                                ${susturuldu ? '<span class="muted-chat-badge">Susturuldu</span>' : ''}
                             </div>
                             <span class="chat-preview" id="preview-${arkadas.nickname}">${arkadas.status || "Sohbet etmek için tıklayın..."}</span>
                         </div>
@@ -883,7 +872,6 @@ async function paneliGuncelle() {
                 });
             }
         } else {
-            sonArkadasListeAnahtari = '';
             dynamicChatList.innerHTML = '<div class="empty-state">Henüz hiç arkadaşınız yok. Üstten ekleyin!</div>';
         }
 
@@ -897,14 +885,12 @@ async function paneliGuncelle() {
                 groupItem.className = 'group-item';
                 if (secilenGrupId === grup._id) groupItem.classList.add('active');
                 if (secilenGrupId === grup._id) secilenGrup = grup;
-                const susturuldu = grupBildirimSusturulduMu(grup._id);
 
                 groupItem.innerHTML = `
                     <div class="group-badge">${(grup.name || 'G').trim().charAt(0).toUpperCase()}</div>
                     <div class="group-info">
                         <div class="chat-info-top">
                             <span class="chat-name">${grup.name}</span>
-                            ${susturuldu ? '<span class="muted-chat-badge">Susturuldu</span>' : ''}
                         </div>
                         <div class="group-meta">${grup.memberCount || 0} üye</div>
                     </div>
@@ -927,7 +913,6 @@ async function paneliGuncelle() {
         }
 
         grupIslemleriniGuncelle();
-        sohbetSusturmaButonunuGuncelle();
 
         if (sohbetTipi === 'group' && secilenGrupId && !(groupData.gruplar || []).some((grup) => String(grup._id) === String(secilenGrupId))) {
             sohbetPenceresiniSifirla();
@@ -1458,7 +1443,6 @@ chatForm.addEventListener('submit', async (e) => {
 // --- 7. ZAMANLAYICI MOTORU ---
 let yenilemeDongusuAktif = false;
 let panelYenilemeDongusuAktif = false;
-let bildirimYenilemeDongusuAktif = false;
 
 async function yenilemeDongusu() {
     if (yenilemeDongusuAktif) return;
@@ -1487,21 +1471,5 @@ async function panelYenilemeDongusu() {
     }
 }
 
-async function bildirimYenilemeDongusu() {
-    if (bildirimYenilemeDongusuAktif) return;
-
-    bildirimYenilemeDongusuAktif = true;
-
-    try {
-        await bildirimleriYokla();
-    } finally {
-        bildirimYenilemeDongusuAktif = false;
-        setTimeout(bildirimYenilemeDongusu, bildirimYenilemeAraligiMs);
-    }
-}
-
-bildirimButonunuGuncelle();
-bildirimAyarlariniYukle().then(() => paneliGuncelle());
-bildirimYenilemeDongusu();
 panelYenilemeDongusu();
 yenilemeDongusu();

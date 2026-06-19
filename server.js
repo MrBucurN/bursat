@@ -1,13 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-
-require('dotenv').config();
-if (!process.env.MONGO_URI) {
-    require('dotenv').config({ path: path.join(__dirname, '.gitignore', '.env') });
-}
 
 const app = express();
 const uploadDir = path.join(__dirname, 'uploads');
@@ -1357,5 +1353,5 @@ app.use((err, req, res, next) => {
 });
 
 // PORT ayarların en altta kalmaya devam edecek
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 app.listen(PORT, () => console.log(`\n🚀 Sunucu http://localhost:${PORT} adresinde aktif!`));
