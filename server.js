@@ -85,6 +85,204 @@ messageSchema.index({ from: 1, toNickname: 1, createdAt: -1 });
 messageSchema.index({ fromNickname: 1, toNickname: 1, createdAt: -1 });
 const Message = mongoose.model('Message', messageSchema);
 
+const groupSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    creatorEposta: { type: String, required: true },
+    memberEpostalar: { type: [String], default: [] },
+    memberRoller: { type: Object, default: {} },
+    mutedMemberEpostalar: { type: [String], default: [] }
+}, { timestamps: true });
+groupSchema.index({ memberEpostalar: 1, updatedAt: -1 });
+const Group = mongoose.model('Group', groupSchema);
+
+const groupMessageSchema = new mongoose.Schema({
+    groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true, index: true },
+    from: String,
+    fromNickname: String,
+    text: String,
+    image: { type: String, default: '' },
+    time: String
+}, { timestamps: true });
+groupMessageSchema.index({ groupId: 1, createdAt: -1 });
+const GroupMessage = mongoose.model('GroupMessage', groupMessageSchema);
+
+async function resolveUserEmailsFromTokens(tokens, creatorEposta) {
+    const epostalar = new Set();
+    if (creatorEposta) {
+        epostalar.add(creatorEposta);
+    }
+
+    for (const rawToken of tokens) {
+        const token = String(rawToken || '').trim();
+        if (!token) continue;
+
+        const lowerToken = token.toLowerCase();
+        let kullanici = null;
+
+        if (lowerToken.includes('@')) {
+            kullanici = await User.findOne({ username: lowerToken }).select('username').lean();
+        }
+
+        if (!kullanici) {
+            kullanici = await User.findOne({ nickname: { $regex: new RegExp(`^${escapeRegex(token)}$`, 'i') } }).select('username').lean();
+        }
+
+        if (!kullanici && !lowerToken.includes('@')) {
+            kullanici = await User.findOne({ username: lowerToken }).select('username').lean();
+        }
+
+        if (!kullanici) {
+            return { success: false, mesaj: `Üye bulunamadı: ${token}` };
+        }
+
+        epostalar.add(kullanici.username);
+    }
+
+    return { success: true, epostalar: Array.from(epostalar) };
+}
+
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function getGroupMemberRole(group, eposta) {
+    const email = normalizeEmail(eposta);
+    if (!group || !email) return 'uye';
+    if (normalizeEmail(group.creatorEposta) === email) return 'yonetici';
+
+    const roller = group.memberRoller && typeof group.memberRoller === 'object' ? group.memberRoller : {};
+    return roller[email] || 'uye';
+}
+
+function canManageRoles(role) {
+    return role === 'yonetici';
+}
+
+function canManageMute(role) {
+    return role === 'yonetici' || role === 'yardimci';
+}
+
+function groupMemberSnapshot(group, user) {
+    const email = normalizeEmail(user?.username || user?.email || user?.eposta || '');
+    const role = getGroupMemberRole(group, email);
+
+    return {
+        eposta: email,
+        nickname: user ? user.nickname : email.split('@')[0],
+        avatar: user ? user.avatar || '' : '',
+        role,
+        muted: Array.isArray(group?.mutedMemberEpostalar) ? group.mutedMemberEpostalar.includes(email) : false
+    };
+}
+
+async function loadGroupWithDefaults(groupId) {
+    const group = await Group.findById(groupId);
+    if (!group) return null;
+
+    let changed = false;
+    const memberSet = new Set(Array.isArray(group.memberEpostalar) ? group.memberEpostalar.map(normalizeEmail).filter(Boolean) : []);
+    const roller = group.memberRoller && typeof group.memberRoller === 'object' ? { ...group.memberRoller } : {};
+    const mutedSet = new Set(Array.isArray(group.mutedMemberEpostalar) ? group.mutedMemberEpostalar.map(normalizeEmail).filter(Boolean) : []);
+
+    if (normalizeEmail(group.creatorEposta)) {
+        memberSet.add(normalizeEmail(group.creatorEposta));
+        if (roller[normalizeEmail(group.creatorEposta)] !== 'yonetici') {
+            roller[normalizeEmail(group.creatorEposta)] = 'yonetici';
+            changed = true;
+        }
+    }
+
+    for (const email of memberSet) {
+        if (!roller[email]) {
+            roller[email] = email === normalizeEmail(group.creatorEposta) ? 'yonetici' : 'uye';
+            changed = true;
+        }
+    }
+
+    for (const email of Object.keys(roller)) {
+        if (!memberSet.has(normalizeEmail(email))) {
+            delete roller[email];
+            changed = true;
+        }
+    }
+
+    for (const email of Array.from(mutedSet)) {
+        if (!memberSet.has(email)) {
+            mutedSet.delete(email);
+            changed = true;
+        }
+    }
+
+    const currentMembers = Array.from(memberSet);
+    if (JSON.stringify(currentMembers.sort()) !== JSON.stringify([...(group.memberEpostalar || [])].map(normalizeEmail).filter(Boolean).sort())) {
+        group.memberEpostalar = currentMembers;
+        changed = true;
+    }
+
+    group.memberRoller = roller;
+    group.mutedMemberEpostalar = Array.from(mutedSet);
+
+    if (changed) {
+        await group.save();
+    }
+
+    return group;
+}
+
+async function loadGroupAccessContext(groupId, userEposta) {
+    const group = await loadGroupWithDefaults(groupId);
+    if (!group) return null;
+
+    const email = normalizeEmail(userEposta);
+    if (!group.memberEpostalar.includes(email)) {
+        return null;
+    }
+
+    const role = getGroupMemberRole(group, email);
+    return { group, role, canManageRoles: canManageRoles(role), canManageMute: canManageMute(role) };
+}
+
+async function resolveGroupMemberEmails(groupId) {
+    const grup = await Group.findById(groupId).select('memberEpostalar creatorEposta name').lean();
+    if (!grup) {
+        return { success: false, mesaj: 'Grup bulunamadı.' };
+    }
+
+    return { success: true, grup };
+}
+
+async function resolveUserEmail(token) {
+    const deger = String(token || '').trim();
+    if (!deger) {
+        return null;
+    }
+
+    const lower = deger.toLowerCase();
+    if (lower.includes('@')) {
+        const kullanici = await User.findOne({ username: lower }).select('username').lean();
+        return kullanici ? kullanici.username : null;
+    }
+
+    const nickKullanici = await User.findOne({ nickname: { $regex: new RegExp(`^${escapeRegex(deger)}$`, 'i') } }).select('username').lean();
+    if (nickKullanici) {
+        return nickKullanici.username;
+    }
+
+    const emailKullanici = await User.findOne({ username: lower }).select('username').lean();
+    return emailKullanici ? emailKullanici.username : null;
+}
+
+async function deleteGroupIfEmpty(groupId) {
+    const remaining = await Group.findById(groupId).select('memberEpostalar').lean();
+    if (!remaining || !Array.isArray(remaining.memberEpostalar) || remaining.memberEpostalar.length === 0) {
+        await GroupMessage.deleteMany({ groupId });
+        await Group.findByIdAndDelete(groupId);
+        return true;
+    }
+
+    return false;
+}
+
 // --- ENDPOINT'LER ---
 
 // Kullanıcı Kaydı
@@ -377,6 +575,502 @@ app.post('/api/mesaj-gonder-v2', upload.single('messageImage'), async (req, res)
         res.json({ success: false, mesaj: "Mesaj gönderilemedi!" });
     }
 }); // <--- Mesaj gönderme fonksiyonu burada düzgünce biter.
+
+app.post('/api/grup-kur', async (req, res) => {
+    try {
+        const { eposta, grupAdi, uyeler } = req.body;
+        const ad = (grupAdi || '').trim();
+        const creatorEposta = (eposta || '').trim().toLowerCase();
+
+        if (!creatorEposta || !ad) {
+            return res.json({ success: false, mesaj: 'Grup adı zorunludur.' });
+        }
+
+        const creator = await User.findOne({ username: creatorEposta }).select('username').lean();
+        if (!creator) {
+            return res.json({ success: false, mesaj: 'Grup kuracak kullanıcı bulunamadı.' });
+        }
+
+        const tokenlar = String(uyeler || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        const cozum = await resolveUserEmailsFromTokens(tokenlar, creatorEposta);
+        if (!cozum.success) {
+            return res.json({ success: false, mesaj: cozum.mesaj });
+        }
+
+        const yeniGrup = new Group({
+            name: ad,
+            creatorEposta,
+            memberEpostalar: cozum.epostalar,
+            memberRoller: Object.fromEntries(cozum.epostalar.map((email) => [email, email === creatorEposta ? 'yonetici' : 'uye'])),
+            mutedMemberEpostalar: []
+        });
+
+        await yeniGrup.save();
+
+        res.json({
+            success: true,
+            mesaj: 'Grup kuruldu! Artık toplu konuşabilirsiniz. 👥',
+            grup: {
+                _id: yeniGrup._id,
+                name: yeniGrup.name,
+                memberCount: yeniGrup.memberEpostalar.length,
+                creatorEposta
+            }
+        });
+    } catch (error) {
+        console.error('Grup kurma hatası:', error);
+        res.json({ success: false, mesaj: 'Grup kurulamadı!' });
+    }
+});
+
+app.post('/api/grup-davet', async (req, res) => {
+    try {
+        const { eposta, groupId, uyeler } = req.body;
+        const davetciEposta = (eposta || '').trim().toLowerCase();
+        const tokenlar = String(uyeler || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        if (!davetciEposta || !groupId || tokenlar.length === 0) {
+            return res.json({ success: false, mesaj: 'Grup daveti için grup ve üye bilgisi gerekli.' });
+        }
+
+        const ctx = await loadGroupAccessContext(groupId, davetciEposta);
+        if (!ctx) {
+            return res.json({ success: false, mesaj: 'Grup bulunamadı veya erişiminiz yok.' });
+        }
+
+        if (!ctx.canManageRoles) {
+            return res.json({ success: false, mesaj: 'Sadece yöneticiler üye davet edebilir.' });
+        }
+
+        const { group } = ctx;
+
+        if (!Array.isArray(group.memberEpostalar) || !group.memberEpostalar.includes(davetciEposta)) {
+            return res.json({ success: false, mesaj: 'Sadece grup üyeleri davet gönderebilir.' });
+        }
+
+        const cozum = await resolveUserEmailsFromTokens(tokenlar, null);
+        if (!cozum.success) {
+            return res.json({ success: false, mesaj: cozum.mesaj });
+        }
+
+        const eklenecekler = cozum.epostalar.filter((userEposta) => !group.memberEpostalar.includes(userEposta));
+        if (eklenecekler.length === 0) {
+            return res.json({ success: false, mesaj: 'Davet edilecek yeni üye bulunamadı.' });
+        }
+
+        await Group.findByIdAndUpdate(groupId, {
+            $addToSet: { memberEpostalar: { $each: eklenecekler } },
+            $set: Object.fromEntries(eklenecekler.map((email) => [`memberRoller.${email}`, 'uye'])),
+            $set: { updatedAt: new Date() }
+        });
+
+        const guncelGrup = await loadGroupWithDefaults(groupId);
+        return res.json({
+            success: true,
+            mesaj: 'Davet gönderildi ve üyeler gruba eklendi.',
+            grup: {
+                _id: guncelGrup._id,
+                name: guncelGrup.name,
+                memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
+                creatorEposta: guncelGrup.creatorEposta,
+                currentUserRole: getGroupMemberRole(guncelGrup, davetciEposta)
+            }
+        });
+    } catch (error) {
+        console.error('Grup daveti hatası:', error);
+        res.json({ success: false, mesaj: 'Grup daveti gönderilemedi!' });
+    }
+});
+
+app.post('/api/gruptan-ayril', async (req, res) => {
+    try {
+        const { eposta, groupId } = req.body;
+        const kullaniciEposta = (eposta || '').trim().toLowerCase();
+
+        if (!kullaniciEposta || !groupId) {
+            return res.json({ success: false, mesaj: 'Grup ve kullanıcı bilgisi gerekli.' });
+        }
+
+        const ctx = await loadGroupAccessContext(groupId, kullaniciEposta);
+        if (!ctx) {
+            return res.json({ success: false, mesaj: 'Bu grupta değilsiniz.' });
+        }
+
+        const { group } = ctx;
+        if (!Array.isArray(group.memberEpostalar) || !group.memberEpostalar.includes(kullaniciEposta)) {
+            return res.json({ success: false, mesaj: 'Bu grupta değilsiniz.' });
+        }
+
+        if (group.creatorEposta === kullaniciEposta) {
+            const kalanlar = group.memberEpostalar.filter((item) => item !== kullaniciEposta);
+
+            if (kalanlar.length === 0) {
+                await GroupMessage.deleteMany({ groupId });
+                await Group.findByIdAndDelete(groupId);
+                return res.json({ success: true, grupSilindi: true, mesaj: 'Grup kapatıldı çünkü son üye sizdiniz.' });
+            }
+
+            await Group.findByIdAndUpdate(groupId, {
+                $set: {
+                    creatorEposta: kalanlar[0],
+                    memberEpostalar: kalanlar,
+                    memberRoller: Object.fromEntries(kalanlar.map((email, index) => [email, index === 0 ? 'yonetici' : (group.memberRoller?.[email] || 'uye')])),
+                    mutedMemberEpostalar: (group.mutedMemberEpostalar || []).filter((email) => kalanlar.includes(email)),
+                    updatedAt: new Date()
+                }
+            });
+
+            const guncelGrup = await loadGroupWithDefaults(groupId);
+            return res.json({
+                success: true,
+                mesaj: 'Gruptan ayrıldınız. Yeni yönetici atandı.',
+                grup: {
+                    _id: guncelGrup._id,
+                    name: guncelGrup.name,
+                    memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
+                    creatorEposta: guncelGrup.creatorEposta,
+                    currentUserRole: getGroupMemberRole(guncelGrup, kullaniciEposta)
+                }
+            });
+        }
+
+        await Group.findByIdAndUpdate(groupId, {
+            $pull: { memberEpostalar: kullaniciEposta },
+            $unset: { [`memberRoller.${kullaniciEposta}`]: 1 },
+            $pull: { mutedMemberEpostalar: kullaniciEposta },
+            $set: { updatedAt: new Date() }
+        });
+
+        const deleted = await deleteGroupIfEmpty(groupId);
+        if (deleted) {
+            return res.json({ success: true, grupSilindi: true, mesaj: 'Gruptan ayrıldınız. Grup boşaldığı için kapatıldı.' });
+        }
+
+        const guncelGrup = await loadGroupWithDefaults(groupId);
+        return res.json({
+            success: true,
+            mesaj: 'Gruptan ayrıldınız.',
+            grup: {
+                _id: guncelGrup._id,
+                name: guncelGrup.name,
+                memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
+                creatorEposta: guncelGrup.creatorEposta,
+                currentUserRole: getGroupMemberRole(guncelGrup, kullaniciEposta)
+            }
+        });
+    } catch (error) {
+        console.error('Gruptan ayrılma hatası:', error);
+        res.json({ success: false, mesaj: 'Gruptan ayrılamadınız!' });
+    }
+});
+
+app.post('/api/gruptan-cikar', async (req, res) => {
+    try {
+        const { eposta, groupId, hedef } = req.body;
+        const yetkiliEposta = (eposta || '').trim().toLowerCase();
+        const hedefEposta = await resolveUserEmail(hedef);
+
+        if (!yetkiliEposta || !groupId || !hedefEposta) {
+            return res.json({ success: false, mesaj: 'Grup ve üye bilgisi gerekli.' });
+        }
+
+        const ctx = await loadGroupAccessContext(groupId, yetkiliEposta);
+        if (!ctx) {
+            return res.json({ success: false, mesaj: 'Grup bulunamadı veya erişiminiz yok.' });
+        }
+
+        const { group, canManageRoles } = ctx;
+        if (!canManageRoles) {
+            return res.json({ success: false, mesaj: 'Sadece grup yöneticisi üye çıkarabilir.' });
+        }
+
+        if (!group.memberEpostalar.includes(hedefEposta)) {
+            return res.json({ success: false, mesaj: 'Bu üye grupta değil.' });
+        }
+
+        if (hedefEposta === group.creatorEposta) {
+            return res.json({ success: false, mesaj: 'Yönetici çıkarılamaz. Önce gruptan ayrılmalısınız.' });
+        }
+
+        await Group.findByIdAndUpdate(groupId, {
+            $pull: { memberEpostalar: hedefEposta },
+            $unset: { [`memberRoller.${hedefEposta}`]: 1 },
+            $pull: { mutedMemberEpostalar: hedefEposta },
+            $set: { updatedAt: new Date() }
+        });
+
+        const deleted = await deleteGroupIfEmpty(groupId);
+        if (deleted) {
+            return res.json({ success: true, grupSilindi: true, mesaj: 'Üye çıkarıldı. Grup boşaldığı için kapatıldı.' });
+        }
+
+        const guncelGrup = await loadGroupWithDefaults(groupId);
+        return res.json({
+            success: true,
+            mesaj: 'Üye gruptan çıkarıldı.',
+            grup: {
+                _id: guncelGrup._id,
+                name: guncelGrup.name,
+                memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
+                creatorEposta: guncelGrup.creatorEposta,
+                currentUserRole: getGroupMemberRole(guncelGrup, yetkiliEposta)
+            }
+        });
+    } catch (error) {
+        console.error('Üye çıkarma hatası:', error);
+        res.json({ success: false, mesaj: 'Üye çıkarılamadı!' });
+    }
+});
+
+app.post('/api/grup-rol-guncelle', async (req, res) => {
+    try {
+        const { eposta, groupId, hedef, rol } = req.body;
+        const yetkiliEposta = normalizeEmail(eposta);
+        const hedefEposta = await resolveUserEmail(hedef);
+        const yeniRol = String(rol || '').trim().toLowerCase();
+
+        if (!yetkiliEposta || !groupId || !hedefEposta || !['yonetici', 'yardimci', 'uye'].includes(yeniRol)) {
+            return res.json({ success: false, mesaj: 'Geçersiz grup rolü isteği.' });
+        }
+
+        const ctx = await loadGroupAccessContext(groupId, yetkiliEposta);
+        if (!ctx) {
+            return res.json({ success: false, mesaj: 'Grup bulunamadı veya erişiminiz yok.' });
+        }
+
+        if (!ctx.canManageRoles) {
+            return res.json({ success: false, mesaj: 'Sadece yöneticiler rol değiştirebilir.' });
+        }
+
+        const { group } = ctx;
+        if (!group.memberEpostalar.includes(hedefEposta)) {
+            return res.json({ success: false, mesaj: 'Bu üye grupta değil.' });
+        }
+
+        if (hedefEposta === group.creatorEposta && yeniRol !== 'yonetici') {
+            return res.json({ success: false, mesaj: 'Ana yönetici rolü değiştirilemez.' });
+        }
+
+        const memberRoller = { ...(group.memberRoller || {}) };
+        memberRoller[hedefEposta] = yeniRol;
+
+        await Group.findByIdAndUpdate(groupId, {
+            $set: {
+                memberRoller,
+                updatedAt: new Date()
+            }
+        });
+
+        const guncelGrup = await loadGroupWithDefaults(groupId);
+        return res.json({
+            success: true,
+            mesaj: 'Üye rolü güncellendi.',
+            grup: {
+                _id: guncelGrup._id,
+                name: guncelGrup.name,
+                memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
+                creatorEposta: guncelGrup.creatorEposta,
+                currentUserRole: getGroupMemberRole(guncelGrup, yetkiliEposta)
+            }
+        });
+    } catch (error) {
+        console.error('Rol güncelleme hatası:', error);
+        res.json({ success: false, mesaj: 'Rol güncellenemedi!' });
+    }
+});
+
+app.post('/api/grup-mute-toggle', async (req, res) => {
+    try {
+        const { eposta, groupId, hedef, mute } = req.body;
+        const yetkiliEposta = normalizeEmail(eposta);
+        const hedefEposta = await resolveUserEmail(hedef);
+        const muteEt = mute === true || mute === 'true' || mute === 1 || mute === '1';
+
+        if (!yetkiliEposta || !groupId || !hedefEposta) {
+            return res.json({ success: false, mesaj: 'Geçersiz mute isteği.' });
+        }
+
+        const ctx = await loadGroupAccessContext(groupId, yetkiliEposta);
+        if (!ctx) {
+            return res.json({ success: false, mesaj: 'Grup bulunamadı veya erişiminiz yok.' });
+        }
+
+        if (!ctx.canManageMute) {
+            return res.json({ success: false, mesaj: 'Bu işlem için yardımcı veya yönetici olmalısınız.' });
+        }
+
+        const { group, role } = ctx;
+        const hedefRol = getGroupMemberRole(group, hedefEposta);
+        if (!group.memberEpostalar.includes(hedefEposta)) {
+            return res.json({ success: false, mesaj: 'Bu üye grupta değil.' });
+        }
+
+        if (hedefRol === 'yonetici') {
+            return res.json({ success: false, mesaj: 'Yöneticiler susturulamaz.' });
+        }
+
+        if (role === 'yardimci' && hedefRol === 'yardimci') {
+            return res.json({ success: false, mesaj: 'Yardımcılar birbirini susturamaz.' });
+        }
+
+        const mutedSet = new Set(Array.isArray(group.mutedMemberEpostalar) ? group.mutedMemberEpostalar.map(normalizeEmail) : []);
+        if (muteEt) mutedSet.add(hedefEposta); else mutedSet.delete(hedefEposta);
+
+        await Group.findByIdAndUpdate(groupId, {
+            $set: {
+                mutedMemberEpostalar: Array.from(mutedSet),
+                updatedAt: new Date()
+            }
+        });
+
+        const guncelGrup = await loadGroupWithDefaults(groupId);
+        return res.json({
+            success: true,
+            mesaj: muteEt ? 'Üye susturuldu.' : 'Üyenin susturması kaldırıldı.',
+            grup: {
+                _id: guncelGrup._id,
+                name: guncelGrup.name,
+                memberCount: Array.isArray(guncelGrup.memberEpostalar) ? guncelGrup.memberEpostalar.length : 0,
+                creatorEposta: guncelGrup.creatorEposta,
+                currentUserRole: getGroupMemberRole(guncelGrup, yetkiliEposta)
+            }
+        });
+    } catch (error) {
+        console.error('Mute hatası:', error);
+        res.json({ success: false, mesaj: 'Mute işlemi başarısız!' });
+    }
+});
+
+app.get('/api/grup-ayarlari/:eposta/:groupId', async (req, res) => {
+    try {
+        const { eposta, groupId } = req.params;
+        const kullaniciEposta = normalizeEmail(eposta);
+        const ctx = await loadGroupAccessContext(groupId, kullaniciEposta);
+
+        if (!ctx) {
+            return res.json({ success: false, mesaj: 'Grup bulunamadı veya erişiminiz yok.' });
+        }
+
+        const { group, role, canManageRoles, canManageMute } = ctx;
+        const userDocs = await User.find({ username: { $in: group.memberEpostalar } }).select('nickname username avatar status').lean();
+        const userMap = new Map(userDocs.map((user) => [normalizeEmail(user.username), user]));
+
+        const members = group.memberEpostalar.map((email) => {
+            const user = userMap.get(normalizeEmail(email));
+            return groupMemberSnapshot(group, user || { username: email, nickname: email.split('@')[0], avatar: '' });
+        }).sort((a, b) => {
+            const rank = { yonetici: 0, yardimci: 1, uye: 2 };
+            if (a.eposta === normalizeEmail(group.creatorEposta)) return -1;
+            if (b.eposta === normalizeEmail(group.creatorEposta)) return 1;
+            return (rank[a.role] || 9) - (rank[b.role] || 9) || a.nickname.localeCompare(b.nickname, 'tr');
+        });
+
+        res.json({
+            success: true,
+            grup: {
+                _id: group._id,
+                name: group.name,
+                creatorEposta: group.creatorEposta,
+                memberCount: members.length,
+                currentUserRole: role,
+                canManageRoles,
+                canManageMute
+            },
+            members
+        });
+    } catch (error) {
+        console.error('Grup ayarları hatası:', error);
+        res.json({ success: false, mesaj: 'Grup ayarları alınamadı!' });
+    }
+});
+
+app.get('/api/gruplar/:eposta', async (req, res) => {
+    try {
+        const { eposta } = req.params;
+        const kullaniciEposta = (eposta || '').trim().toLowerCase();
+
+        const gruplar = await Group.find({ memberEpostalar: kullaniciEposta })
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        res.json({
+            gruplar: gruplar.map((grup) => ({
+                _id: grup._id,
+                name: grup.name,
+                creatorEposta: grup.creatorEposta,
+                memberCount: Array.isArray(grup.memberEpostalar) ? grup.memberEpostalar.length : 0,
+                currentUserRole: getGroupMemberRole(grup, kullaniciEposta)
+            }))
+        });
+    } catch (error) {
+        res.json({ gruplar: [] });
+    }
+});
+
+app.get('/api/grup-mesajlari/:benEposta/:groupId', async (req, res) => {
+    try {
+        const { benEposta, groupId } = req.params;
+        const kullaniciEposta = (benEposta || '').trim().toLowerCase();
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
+
+        const grup = await loadGroupWithDefaults(groupId);
+        if (!grup || !grup.memberEpostalar.includes(kullaniciEposta)) {
+            return res.json([]);
+        }
+
+        const grupMesajlari = await GroupMessage.find({ groupId })
+            .select('from fromNickname text image time createdAt')
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
+
+        res.json(grupMesajlari.reverse());
+    } catch (error) {
+        res.json([]);
+    }
+});
+
+app.post('/api/grup-mesaj-gonder', upload.single('messageImage'), async (req, res) => {
+    try {
+        const { fromEposta, groupId, text } = req.body;
+        const kullaniciEposta = (fromEposta || '').trim().toLowerCase();
+        const image = uploadedFileUrl(req.file) || req.body.image || '';
+
+        const grup = await loadGroupWithDefaults(groupId);
+        if (!grup || !grup.memberEpostalar.includes(kullaniciEposta)) {
+            return res.json({ success: false, mesaj: 'Grup bulunamadı veya erişim yok.' });
+        }
+
+        if ((Array.isArray(grup.mutedMemberEpostalar) ? grup.mutedMemberEpostalar : []).includes(kullaniciEposta)) {
+            return res.json({ success: false, mesaj: 'Bu grupta susturuldunuz.' });
+        }
+
+        const ben = await User.findOne({ username: kullaniciEposta }).select('nickname').lean();
+        const yeniMesaj = new GroupMessage({
+            groupId,
+            from: kullaniciEposta,
+            fromNickname: ben ? ben.nickname : kullaniciEposta.split('@')[0],
+            text: text || '',
+            image: typeof image === 'string' ? image : '',
+            time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+        });
+
+        await yeniMesaj.save();
+    await Group.findByIdAndUpdate(groupId, { $set: { updatedAt: new Date() } });
+
+        res.json({ success: true, yeniMesaj });
+    } catch (error) {
+        console.error('Grup mesajı gönderilemedi:', error);
+        res.json({ success: false, mesaj: 'Grup mesajı gönderilemedi!' });
+    }
+});
 
 // --- Hata Yönetimi (Bu bloğu yukarıdaki app.post'un DIŞINA çıkardık) ---
 app.use((err, req, res, next) => {

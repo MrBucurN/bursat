@@ -12,9 +12,13 @@ logoutButton.addEventListener('click', () => {
 
 let secilenAliciNickname = null;
 let secilenAliciEposta = null;
+let secilenGrupId = null;
+let secilenGrup = null;
+let secilenGrupAdi = '';
 let mevcutNickname = '';
 let secilenAvatar = '';
 let aktifSohbetToken = 0;
+let sohbetTipi = 'private';
 const ilkSohbetMesajLimiti = 20;
 const sohbetYenilemeAraligiMs = 2000;
 const panelYenilemeAraligiMs = 10000;
@@ -23,9 +27,13 @@ const panelYenilemeAraligiMs = 10000;
 const bursatContainer = document.getElementById('bursat-container');
 const friendForm = document.getElementById('friend-form');
 const friendInput = document.getElementById('friend-username-input');
+const groupForm = document.getElementById('group-form');
+const groupNameInput = document.getElementById('group-name-input');
+const groupMembersInput = document.getElementById('group-members-input');
 const requestsBox = document.getElementById('requests-box');
 const dynamicRequestsList = document.getElementById('dynamic-requests-list');
 const dynamicChatList = document.getElementById('dynamic-chat-list');
+const dynamicGroupList = document.getElementById('dynamic-group-list');
 
 const chatMainArea = document.getElementById('chat-main-area');
 const settingsMainArea = document.getElementById('settings-main-area');
@@ -41,6 +49,24 @@ const activeChatTitle = document.getElementById('active-chat-title');
 const activeChatStatus = document.getElementById('active-chat-status');
 const activeAvatar = document.getElementById('active-avatar');
 const activeAvatarImg = document.getElementById('active-avatar-img');
+const groupActionsBar = document.getElementById('group-actions');
+const groupSettingsBtn = document.getElementById('group-settings-btn');
+const groupInviteBtn = document.getElementById('group-invite-btn');
+const groupKickBtn = document.getElementById('group-kick-btn');
+const groupLeaveBtn = document.getElementById('group-leave-btn');
+const groupSettingsMainArea = document.getElementById('group-settings-main-area');
+const closeGroupSettingsBtn = document.getElementById('close-group-settings-btn');
+const groupSettingsTitle = document.getElementById('group-settings-title');
+const groupSettingsSummary = document.getElementById('group-settings-summary');
+const groupRoleForm = document.getElementById('group-role-form');
+const groupRoleMember = document.getElementById('group-role-member');
+const groupRoleSelect = document.getElementById('group-role-select');
+const groupMuteForm = document.getElementById('group-mute-form');
+const groupMuteMember = document.getElementById('group-mute-member');
+const groupMuteAction = document.getElementById('group-mute-action');
+const groupRemoveForm = document.getElementById('group-remove-form');
+const groupRemoveMember = document.getElementById('group-remove-member');
+const groupMemberList = document.getElementById('group-member-list');
 
 const messagesBox = document.getElementById('messages-box');
 const chatForm = document.getElementById('chat-form');
@@ -60,7 +86,16 @@ function sohbetEkraniniAc() {
 function ayarlarEkraniniAc() {
     chatMainArea.style.display = 'none';
     settingsMainArea.style.display = 'flex';
+    if (groupSettingsMainArea) groupSettingsMainArea.style.display = 'none';
     bursatContainer.classList.remove('chat-is-open');
+    bursatContainer.classList.add('settings-is-open');
+}
+
+function grupAyarlariniAc() {
+    chatMainArea.style.display = 'none';
+    settingsMainArea.style.display = 'none';
+    if (groupSettingsMainArea) groupSettingsMainArea.style.display = 'flex';
+    bursatContainer.classList.remove('chat-is-open', 'settings-is-open');
     bursatContainer.classList.add('settings-is-open');
 }
 
@@ -72,6 +107,220 @@ function avatarOnizlemeGuncelle(src) {
         avatarPreview.removeAttribute('src');
         avatarPreview.style.display = 'none';
     }
+}
+
+function grupIslemleriniGuncelle() {
+    const grupAcikMi = sohbetTipi === 'group' && secilenGrupId;
+    if (!groupActionsBar) return;
+
+    groupActionsBar.style.display = grupAcikMi ? 'flex' : 'none';
+
+    if (groupInviteBtn) {
+        groupInviteBtn.style.display = grupAcikMi ? 'inline-flex' : 'none';
+    }
+
+    if (groupKickBtn) {
+        const yoneticiMi = secilenGrup && secilenGrup.creatorEposta === aktifKullanici;
+        groupKickBtn.style.display = grupAcikMi && yoneticiMi ? 'inline-flex' : 'none';
+    }
+
+    if (groupLeaveBtn) {
+        groupLeaveBtn.style.display = grupAcikMi ? 'inline-flex' : 'none';
+    }
+
+    if (groupSettingsBtn) {
+        groupSettingsBtn.style.display = grupAcikMi ? 'inline-flex' : 'none';
+    }
+}
+
+function sohbetPenceresiniSifirla() {
+    aktifSohbetKartlariniKaldir();
+    secilenAliciNickname = null;
+    secilenAliciEposta = null;
+    secilenGrupId = null;
+    secilenGrup = null;
+    secilenGrupAdi = '';
+    sohbetTipi = 'private';
+
+    activeChatTitle.textContent = 'Bir sohbet seçin';
+    activeChatStatus.textContent = 'Bursat Mesajlaşma';
+    activeAvatarImg.style.display = 'none';
+    activeAvatar.style.display = 'grid';
+    activeAvatar.textContent = '?';
+    messagesBox.innerHTML = '<div class="message incoming" style="align-self: center; border-radius: 12px; font-size: 0.85rem; background: var(--input-bg); opacity: 0.7;">Sohbete başlamak için soldan bir arkadaş seçin veya sağ alttaki ⚙️ simgesinden profilinizi düzenleyin!</div>';
+    grupIslemleriniGuncelle();
+}
+
+function roleLabel(role) {
+    if (role === 'yonetici') return 'Yönetici';
+    if (role === 'yardimci') return 'Yardımcı';
+    return 'Üye';
+}
+
+function renderGroupMemberOptions(members) {
+    const optionsHtml = members.map((member) => `<option value="${member.eposta}">${member.nickname} (${roleLabel(member.role)})</option>`).join('');
+    if (groupRoleMember) groupRoleMember.innerHTML = optionsHtml;
+    if (groupMuteMember) groupMuteMember.innerHTML = optionsHtml;
+    if (groupRemoveMember) groupRemoveMember.innerHTML = optionsHtml;
+}
+
+function renderGroupMemberList(members) {
+    if (!groupMemberList) return;
+
+    groupMemberList.innerHTML = '';
+    members.forEach((member) => {
+        const item = document.createElement('div');
+        item.className = 'group-member-item';
+
+        const avatarSrc = member.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${member.nickname}`;
+        const canManageRoles = secilenGrup && secilenGrup.currentUserRole === 'yonetici';
+        const canManageMute = secilenGrup && (secilenGrup.currentUserRole === 'yonetici' || secilenGrup.currentUserRole === 'yardimci');
+        const self = member.eposta === aktifKullanici;
+        const isCreator = secilenGrup && member.eposta === secilenGrup.creatorEposta;
+
+        const roleButtons = [];
+        if (canManageRoles && member.role !== 'yonetici') {
+            roleButtons.push(`<button type="button" data-action="set-role" data-target="${member.eposta}" data-role="yardimci">Yardımcı Yap</button>`);
+            roleButtons.push(`<button type="button" data-action="set-role" data-target="${member.eposta}" data-role="uye">Üye Yap</button>`);
+            if (!isCreator) {
+                roleButtons.push(`<button type="button" data-action="set-role" data-target="${member.eposta}" data-role="yonetici">Yönetici Yap</button>`);
+            }
+        }
+
+        if (canManageMute && member.role !== 'yonetici') {
+            if (member.muted) {
+                roleButtons.push(`<button type="button" data-action="unmute" data-target="${member.eposta}">Mute Kaldır</button>`);
+            } else {
+                roleButtons.push(`<button type="button" data-action="mute" data-target="${member.eposta}">Mute At</button>`);
+            }
+        }
+
+        if (canManageRoles && !self && !isCreator) {
+            roleButtons.push(`<button type="button" data-action="remove" data-target="${member.eposta}" class="danger-btn">Çıkar</button>`);
+        }
+
+        item.innerHTML = `
+            <div class="group-member-left">
+                <img class="group-member-avatar" src="${avatarSrc}" alt="${member.nickname}">
+                <div class="group-member-name-wrap">
+                    <div class="group-member-name">${member.nickname}</div>
+                    <div class="group-member-email">${member.eposta}</div>
+                </div>
+            </div>
+            <div class="group-member-actions">
+                <span class="group-role-badge role-${member.role}">${roleLabel(member.role)}</span>
+                ${roleButtons.join('')}
+            </div>
+        `;
+
+        groupMemberList.appendChild(item);
+    });
+}
+
+async function grupAyarlariniYukle() {
+    if (!secilenGrupId) return;
+
+    try {
+        const response = await fetch(`/api/grup-ayarlari/${aktifKullanici}/${secilenGrupId}`);
+        const data = await response.json();
+
+        if (!data.success) {
+            alert(data.mesaj || 'Grup ayarları alınamadı.');
+            return;
+        }
+
+        secilenGrup = { ...(secilenGrup || {}), ...data.grup };
+
+        if (groupSettingsTitle) {
+            groupSettingsTitle.textContent = `${data.grup.name} Ayarları`;
+        }
+
+        if (groupSettingsSummary) {
+            groupSettingsSummary.textContent = `Rolünüz: ${roleLabel(data.grup.currentUserRole)} | Üye sayısı: ${data.grup.memberCount}`;
+        }
+
+        renderGroupMemberOptions(data.members || []);
+        renderGroupMemberList(data.members || []);
+
+        if (groupRoleForm) groupRoleForm.style.display = data.grup.canManageRoles ? 'grid' : 'none';
+        if (groupMuteForm) groupMuteForm.style.display = data.grup.canManageMute ? 'grid' : 'none';
+        if (groupRemoveForm) groupRemoveForm.style.display = data.grup.canManageRoles ? 'grid' : 'none';
+
+        grupAyarlariniAc();
+    } catch (error) {
+        console.error('Grup ayarları yüklenemedi:', error);
+    }
+}
+
+function kapatGrupAyarPaneli() {
+    if (groupSettingsMainArea) groupSettingsMainArea.style.display = 'none';
+    if (sohbetTipi === 'group' && secilenGrupId) {
+        sohbetEkraniniAc();
+        grupIslemleriniGuncelle();
+    } else {
+        listeEkraniniAc();
+    }
+}
+
+function aktifSohbetKartlariniKaldir() {
+    document.querySelectorAll('.chat-item.active, .group-item.active').forEach((item) => {
+        item.classList.remove('active');
+    });
+}
+
+function grubuSec(grup, eleman) {
+    aktifSohbetToken += 1;
+    secilenAliciNickname = null;
+    secilenAliciEposta = null;
+    secilenGrupId = grup._id;
+    secilenGrup = grup;
+    secilenGrupAdi = grup.name;
+    sohbetTipi = 'group';
+
+    aktifSohbetKartlariniKaldir();
+    if (eleman) {
+        eleman.classList.add('active');
+    }
+
+    activeChatTitle.textContent = grup.name;
+    activeChatStatus.textContent = `${grup.memberCount || 0} üye`;
+    activeAvatarImg.style.display = 'none';
+    activeAvatar.style.display = 'grid';
+    activeAvatar.textContent = (grup.name || 'G').trim().charAt(0).toUpperCase();
+    messagesBox.innerHTML = '<div class="empty-state">Grup yükleniyor...</div>';
+    grupIslemleriniGuncelle();
+}
+
+function ozelSohbetiSec(arkadasNickname, arkadasEposta, avatar, status, eleman) {
+    aktifSohbetToken += 1;
+    secilenAliciNickname = arkadasNickname;
+    secilenAliciEposta = arkadasEposta || null;
+    secilenGrupId = null;
+    secilenGrup = null;
+    secilenGrupAdi = '';
+    sohbetTipi = 'private';
+
+    aktifSohbetKartlariniKaldir();
+    if (eleman) {
+        eleman.classList.add('active');
+    }
+
+    messagesBox.innerHTML = '<div class="empty-state">Sohbet yükleniyor...</div>';
+
+    activeChatTitle.textContent = arkadasNickname;
+    activeChatStatus.textContent = status || "Bursat Üyesi";
+
+    if (avatar) {
+        activeAvatar.style.display = 'none';
+        activeAvatarImg.style.display = 'block';
+        activeAvatarImg.src = avatar;
+    } else {
+        activeAvatarImg.style.display = 'none';
+        activeAvatar.style.display = 'grid';
+        activeAvatar.textContent = arkadasNickname.charAt(0).toUpperCase();
+    }
+
+    grupIslemleriniGuncelle();
 }
 
 function seciliAvatarYukle() {
@@ -229,6 +478,18 @@ closeSettingsBtn.addEventListener('click', () => {
     listeEkraniniAc();
 });
 
+if (groupSettingsBtn) {
+    groupSettingsBtn.addEventListener('click', () => {
+        grupAyarlariniYukle();
+    });
+}
+
+if (closeGroupSettingsBtn) {
+    closeGroupSettingsBtn.addEventListener('click', () => {
+        kapatGrupAyarPaneli();
+    });
+}
+
 mobileBackBtn.addEventListener('click', () => {
     listeEkraniniAc();
 });
@@ -373,6 +634,49 @@ async function paneliGuncelle() {
             dynamicChatList.innerHTML = '<div class="empty-state">Henüz hiç arkadaşınız yok. Üstten ekleyin!</div>';
         }
 
+        const groupResponse = await fetch(`/api/gruplar/${aktifKullanici}`);
+        const groupData = await groupResponse.json();
+
+        dynamicGroupList.innerHTML = '';
+        if (groupData.gruplar && groupData.gruplar.length > 0) {
+            groupData.gruplar.forEach((grup) => {
+                const groupItem = document.createElement('div');
+                groupItem.className = 'group-item';
+                if (secilenGrupId === grup._id) groupItem.classList.add('active');
+                if (secilenGrupId === grup._id) secilenGrup = grup;
+
+                groupItem.innerHTML = `
+                    <div class="group-badge">${(grup.name || 'G').trim().charAt(0).toUpperCase()}</div>
+                    <div class="group-info">
+                        <div class="chat-info-top">
+                            <span class="chat-name">${grup.name}</span>
+                        </div>
+                        <div class="group-meta">${grup.memberCount || 0} üye</div>
+                    </div>
+                `;
+
+                groupItem.addEventListener('click', () => {
+                    if (secilenGrupId !== grup._id) {
+                        grubuSec(grup, groupItem);
+                        mesajlariCanliGetir();
+                    } else {
+                        sohbetEkraniniAc();
+                        messagesBox.scrollTop = messagesBox.scrollHeight;
+                    }
+                });
+
+                dynamicGroupList.appendChild(groupItem);
+            });
+        } else {
+            dynamicGroupList.innerHTML = '<div class="empty-state">Henüz grup yok. İlk grubunu kur!</div>';
+        }
+
+        grupIslemleriniGuncelle();
+
+        if (sohbetTipi === 'group' && secilenGrupId && !(groupData.gruplar || []).some((grup) => String(grup._id) === String(secilenGrupId))) {
+            sohbetPenceresiniSifirla();
+        }
+
     } catch (error) {
         console.error("Panel güncellenirken hata:", error);
     }
@@ -398,6 +702,287 @@ friendForm.addEventListener('submit', async (e) => {
     }
 });
 
+groupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const grupAdi = groupNameInput.value.trim();
+    const uyeler = groupMembersInput.value.trim();
+
+    if (!grupAdi) {
+        alert('Grup adı boş bırakılamaz!');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/grup-kur', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eposta: aktifKullanici, grupAdi, uyeler })
+        });
+        const data = await response.json();
+        alert(data.mesaj);
+
+        if (data.success) {
+            groupNameInput.value = '';
+            groupMembersInput.value = '';
+            if (data.grup) {
+                grubuSec({ _id: data.grup._id, name: data.grup.name, memberCount: data.grup.memberCount || 0, creatorEposta: data.grup.creatorEposta || aktifKullanici });
+            }
+            await paneliGuncelle();
+            await mesajlariCanliGetir();
+        }
+    } catch (error) {
+        console.error('Grup kurma isteği başarısız:', error);
+    }
+});
+
+if (groupRoleForm) {
+    groupRoleForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!secilenGrupId) return;
+
+        const hedef = groupRoleMember.value;
+        const rol = groupRoleSelect.value;
+
+        try {
+            const response = await fetch('/api/grup-rol-guncelle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, hedef, rol })
+            });
+            const data = await response.json();
+            alert(data.mesaj);
+            if (data.success) {
+                await grupAyarlariniYukle();
+                await paneliGuncelle();
+            }
+        } catch (error) {
+            console.error('Rol güncelleme başarısız:', error);
+        }
+    });
+}
+
+if (groupMuteForm) {
+    groupMuteForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!secilenGrupId) return;
+
+        const hedef = groupMuteMember.value;
+        const mute = groupMuteAction.value === 'mute';
+
+        try {
+            const response = await fetch('/api/grup-mute-toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, hedef, mute })
+            });
+            const data = await response.json();
+            alert(data.mesaj);
+            if (data.success) {
+                await grupAyarlariniYukle();
+                await paneliGuncelle();
+            }
+        } catch (error) {
+            console.error('Mute işlemi başarısız:', error);
+        }
+    });
+}
+
+if (groupRemoveForm) {
+    groupRemoveForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!secilenGrupId) return;
+
+        const hedef = groupRemoveMember.value;
+        const onay = window.confirm('Seçili üyeyi gruptan çıkarmak istiyor musunuz?');
+        if (!onay) return;
+
+        try {
+            const response = await fetch('/api/gruptan-cikar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, hedef })
+            });
+            const data = await response.json();
+            alert(data.mesaj);
+            if (data.success) {
+                if (data.grupSilindi) {
+                    sohbetPenceresiniSifirla();
+                } else {
+                    await grupAyarlariniYukle();
+                    await paneliGuncelle();
+                }
+            }
+        } catch (error) {
+            console.error('Üye çıkarma başarısız:', error);
+        }
+    });
+}
+
+if (groupMemberList) {
+    groupMemberList.addEventListener('click', async (e) => {
+        const button = e.target.closest('button[data-action]');
+        if (!button || !secilenGrupId) return;
+
+        const hedef = button.getAttribute('data-target');
+        const action = button.getAttribute('data-action');
+        const role = button.getAttribute('data-role');
+
+        if (action === 'remove') {
+            const onay = window.confirm('Bu üyeyi gruptan çıkarmak istiyor musunuz?');
+            if (!onay) return;
+
+            try {
+                const response = await fetch('/api/gruptan-cikar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, hedef })
+                });
+                const data = await response.json();
+                alert(data.mesaj);
+                if (data.success) {
+                    if (data.grupSilindi) {
+                        sohbetPenceresiniSifirla();
+                    } else {
+                        await grupAyarlariniYukle();
+                        await paneliGuncelle();
+                    }
+                }
+            } catch (error) {
+                console.error('Hızlı çıkarma başarısız:', error);
+            }
+            return;
+        }
+
+        if (action === 'mute' || action === 'unmute') {
+            try {
+                const response = await fetch('/api/grup-mute-toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, hedef, mute: action === 'mute' })
+                });
+                const data = await response.json();
+                alert(data.mesaj);
+                if (data.success) {
+                    await grupAyarlariniYukle();
+                }
+            } catch (error) {
+                console.error('Mute toggle başarısız:', error);
+            }
+            return;
+        }
+
+        if (action === 'set-role' && role) {
+            try {
+                const response = await fetch('/api/grup-rol-guncelle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, hedef, rol: role })
+                });
+                const data = await response.json();
+                alert(data.mesaj);
+                if (data.success) {
+                    await grupAyarlariniYukle();
+                    await paneliGuncelle();
+                }
+            } catch (error) {
+                console.error('Rol kısayolu başarısız:', error);
+            }
+        }
+    });
+}
+
+if (groupInviteBtn) {
+    groupInviteBtn.addEventListener('click', async () => {
+        if (!secilenGrupId) return;
+
+        const uyeler = window.prompt('Davet etmek istediğiniz kullanıcı adı veya e-posta adreslerini virgülle ayırarak yazın:');
+        if (!uyeler || !uyeler.trim()) return;
+
+        try {
+            const response = await fetch('/api/grup-davet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, uyeler })
+            });
+            const data = await response.json();
+            alert(data.mesaj);
+
+            if (data.success) {
+                if (data.grup) {
+                    secilenGrup = { ...secilenGrup, ...data.grup };
+                    activeChatStatus.textContent = `${data.grup.memberCount || 0} üye`;
+                }
+                await paneliGuncelle();
+            }
+        } catch (error) {
+            console.error('Grup daveti başarısız:', error);
+        }
+    });
+}
+
+if (groupLeaveBtn) {
+    groupLeaveBtn.addEventListener('click', async () => {
+        if (!secilenGrupId) return;
+
+        const onay = window.confirm('Bu gruptan ayrılmak istiyor musunuz?');
+        if (!onay) return;
+
+        try {
+            const response = await fetch('/api/gruptan-ayril', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId })
+            });
+            const data = await response.json();
+            alert(data.mesaj);
+
+            if (data.success) {
+                if (data.grupSilindi) {
+                    sohbetPenceresiniSifirla();
+                } else if (data.grup) {
+                    secilenGrup = { ...secilenGrup, ...data.grup };
+                    sohbetPenceresiniSifirla();
+                }
+                await paneliGuncelle();
+            }
+        } catch (error) {
+            console.error('Gruptan ayrılma başarısız:', error);
+        }
+    });
+}
+
+if (groupKickBtn) {
+    groupKickBtn.addEventListener('click', async () => {
+        if (!secilenGrupId) return;
+
+        const hedef = window.prompt('Çıkarmak istediğiniz kullanıcı adı veya e-posta adresini yazın:');
+        if (!hedef || !hedef.trim()) return;
+
+        try {
+            const response = await fetch('/api/gruptan-cikar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eposta: aktifKullanici, groupId: secilenGrupId, hedef })
+            });
+            const data = await response.json();
+            alert(data.mesaj);
+
+            if (data.success) {
+                if (data.grup) {
+                    secilenGrup = { ...secilenGrup, ...data.grup };
+                    activeChatStatus.textContent = `${data.grup.memberCount || 0} üye`;
+                } else if (data.grupSilindi) {
+                    sohbetPenceresiniSifirla();
+                }
+                await paneliGuncelle();
+            }
+        } catch (error) {
+            console.error('Üye çıkarma başarısız:', error);
+        }
+    });
+}
+
 // --- 3. İSTEK CEVAPLAMA MANTIĞI ---
 dynamicRequestsList.addEventListener('click', async (e) => {
     if (e.target && e.target.classList.contains('req-btn')) {
@@ -421,30 +1006,8 @@ dynamicRequestsList.addEventListener('click', async (e) => {
 
 // --- 4. SOHBETİ SEÇME VE AKTİF ETME ---
 async function sohbetiAc(arkadasNickname, arkadasEposta, avatar, status, eleman) {
-    aktifSohbetToken += 1;
+    ozelSohbetiSec(arkadasNickname, arkadasEposta, avatar, status, eleman);
     const buSohbetToken = aktifSohbetToken;
-    secilenAliciNickname = arkadasNickname;
-    secilenAliciEposta = arkadasEposta || null;
-
-    const eskiAktif = document.querySelector('.chat-item.active');
-    if (eskiAktif) eskiAktif.classList.remove('active');
-    eleman.classList.add('active');
-
-    messagesBox.innerHTML = '<div class="empty-state">Sohbet yükleniyor...</div>';
-
-    activeChatTitle.textContent = arkadasNickname;
-    activeChatStatus.textContent = status || "Bursat Üyesi";
-
-    if (avatar) {
-        activeAvatar.style.display = 'none';
-        activeAvatarImg.style.display = 'block';
-        activeAvatarImg.src = avatar;
-    } else {
-        activeAvatarImg.style.display = 'none';
-        activeAvatar.style.display = 'grid';
-        activeAvatar.textContent = arkadasNickname.charAt(0).toUpperCase();
-    }
-
     await mesajlariCanliGetir(buSohbetToken);
     messagesBox.scrollTop = messagesBox.scrollHeight;
     sohbetEkraniniAc();
@@ -452,6 +1015,41 @@ async function sohbetiAc(arkadasNickname, arkadasEposta, avatar, status, eleman)
 
 // --- 5. MESAJLARI CANLI GÖSTEREN ARKA PLAN MOTORU ---
 async function mesajlariCanliGetir(sohbetToken = aktifSohbetToken) {
+    if (sohbetTipi === 'group') {
+        if (!secilenGrupId) return;
+
+        try {
+            const response = await fetch(`/api/grup-mesajlari/${aktifKullanici}/${secilenGrupId}?limit=${ilkSohbetMesajLimiti}`);
+            const mesajlar = await response.json();
+
+            if (sohbetToken !== aktifSohbetToken) {
+                return;
+            }
+
+            const kullaniciAsagidaMi = messagesBox.scrollHeight - messagesBox.scrollTop <= messagesBox.clientHeight + 100;
+            const mevcutMesajSayisi = messagesBox.querySelectorAll('.message').length;
+
+            if (mesajlar.length !== mevcutMesajSayisi) {
+                messagesBox.innerHTML = '';
+                if (mesajlar.length === 0) {
+                    messagesBox.innerHTML = '<div class="empty-state">Henüz grup mesajı yok. İlk mesajı sen gönder.</div>';
+                } else {
+                    mesajlar.forEach(m => {
+                        messagesBox.appendChild(mesajBalonuOlustur(m));
+                    });
+
+                    if (kullaniciAsagidaMi) {
+                        messagesBox.scrollTop = messagesBox.scrollHeight;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Grup mesajları çekilirken hata:', error);
+        }
+
+        return;
+    }
+
     if (!secilenAliciEposta) return;
 
     try {
@@ -482,7 +1080,15 @@ async function mesajlariCanliGetir(sohbetToken = aktifSohbetToken) {
 
 function mesajBalonuOlustur(mesaj) {
     const mesajBalonu = document.createElement('div');
-    mesajBalonu.className = `message ${mesaj.from === aktifKullanici ? 'outgoing' : 'incoming'}`;
+    const outgoing = mesaj.from === aktifKullanici;
+    mesajBalonu.className = `message ${outgoing ? 'outgoing' : 'incoming'}`;
+
+    if (sohbetTipi === 'group' && !outgoing) {
+        const senderEl = document.createElement('div');
+        senderEl.className = 'message-sender';
+        senderEl.textContent = mesaj.fromNickname || mesaj.from || 'Üye';
+        mesajBalonu.appendChild(senderEl);
+    }
 
     if (mesaj.image) {
         const imageEl = document.createElement('img');
@@ -508,14 +1114,21 @@ chatForm.addEventListener('submit', async (e) => {
     const mesajMetni = msgInput.value.trim();
     const mesajDosyasi = chatImageInput.files && chatImageInput.files[0];
 
-    if (!secilenAliciNickname) {
-        alert("Lütfen bir arkadaşınızı seçin!");
-        return;
-    }
+    if (sohbetTipi === 'group') {
+        if (!secilenGrupId) {
+            alert('Lütfen bir grup seçin!');
+            return;
+        }
+    } else {
+        if (!secilenAliciNickname) {
+            alert("Lütfen bir arkadaşınızı seçin!");
+            return;
+        }
 
-    if (!secilenAliciEposta) {
-        alert("Seçili sohbet için alıcı bilgisi bulunamadı.");
-        return;
+        if (!secilenAliciEposta) {
+            alert("Seçili sohbet için alıcı bilgisi bulunamadı.");
+            return;
+        }
     }
 
     if (!mesajMetni && !mesajDosyasi) {
@@ -544,15 +1157,22 @@ chatForm.addEventListener('submit', async (e) => {
 
         const formData = new FormData();
         formData.append('fromEposta', aktifKullanici);
-        formData.append('toNickname', secilenAliciNickname);
-        formData.append('toEposta', secilenAliciEposta);
         formData.append('text', mesajMetni);
 
         if (kucultulmusDosya) {
             formData.append('messageImage', kucultulmusDosya);
         }
 
-        const response = await fetch('/api/mesaj-gonder-v2', {
+        const endpoint = sohbetTipi === 'group' ? '/api/grup-mesaj-gonder' : '/api/mesaj-gonder-v2';
+
+        if (sohbetTipi === 'group') {
+            formData.append('groupId', secilenGrupId);
+        } else {
+            formData.append('toNickname', secilenAliciNickname);
+            formData.append('toEposta', secilenAliciEposta);
+        }
+
+        const response = await fetch(endpoint, {
             method: 'POST',
             body: formData
         });
@@ -610,6 +1230,5 @@ async function panelYenilemeDongusu() {
     }
 }
 
-paneliGuncelle();
 panelYenilemeDongusu();
 yenilemeDongusu();

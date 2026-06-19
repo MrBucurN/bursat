@@ -34,6 +34,14 @@
                 </form>
             </div>
 
+            <div class="group-add-area">
+                <form id="group-form">
+                    <input type="text" id="group-name-input" placeholder="Grup adı..." autocomplete="off" required>
+                    <input type="text" id="group-members-input" placeholder="Üyeler (kullanıcı adı veya e-posta, virgülle)" autocomplete="off">
+                    <button type="submit">Kur</button>
+                </form>
+            </div>
+
             <div class="requests-section" id="requests-box" style="display: none;">
                 <div class="requests-title">Gelen İstekler 🔔</div>
                 <div id="dynamic-requests-list"></div>
@@ -42,6 +50,11 @@
             <div class="chat-list-title">Arkadaşlarım 💬</div>
             <div class="chat-list" id="dynamic-chat-list">
                 </div>
+
+            <div class="groups-section">
+                <div class="chat-list-title">Gruplar 👥</div>
+                <div class="chat-list" id="dynamic-group-list"></div>
+            </div>
 
             <div class="sidebar-profile-footer" id="open-settings-btn">
                 <img src="https://api.dicebear.com/7.x/bottts/svg?seed=default" class="avatar-img" id="my-footer-avatar" alt="Profil">
@@ -61,6 +74,16 @@
                 <div class="chat-header-info">
                     <div class="chat-name" id="active-chat-title">Bir sohbet seçin</div>
                     <div class="chat-status" id="active-chat-status">Bursat Mesajlaşma</div>
+                </div>
+            </div>
+
+            <div class="group-actions" id="group-actions" style="display:none;">
+                <span class="group-actions-label">Grup işlemleri</span>
+                <div class="group-actions-buttons">
+                    <button type="button" id="group-invite-btn">Davet Et</button>
+                    <button type="button" id="group-settings-btn">Grup Ayarları</button>
+                    <button type="button" id="group-kick-btn">Üye Çıkar</button>
+                    <button type="button" id="group-leave-btn">Gruptan Ayrıl</button>
                 </div>
             </div>
 
@@ -111,6 +134,61 @@
                         <button type="button" id="close-settings-btn" class="settings-close-btn">Kapat</button>
                     </div>
                 </form>
+            </div>
+        </main>
+
+        <main class="chat-area settings-area group-settings-area" id="group-settings-main-area" style="display: none;">
+            <div class="settings-card group-settings-card">
+                <div class="group-settings-header">
+                    <h2 class="settings-title" id="group-settings-title">Grup Ayarları</h2>
+                    <button type="button" class="settings-close-btn" id="close-group-settings-btn">Kapat</button>
+                </div>
+                <div class="group-settings-summary" id="group-settings-summary"></div>
+                <div class="group-settings-forms">
+                    <form id="group-role-form" class="group-settings-form">
+                        <div class="settings-field">
+                            <label class="settings-label">Üye</label>
+                            <select id="group-role-member" class="message-input settings-input"></select>
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">Rol</label>
+                            <select id="group-role-select" class="message-input settings-input">
+                                <option value="uye">Üye</option>
+                                <option value="yardimci">Yardımcı</option>
+                                <option value="yonetici">Yönetici</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="settings-save-btn">Rol Güncelle</button>
+                    </form>
+
+                    <form id="group-mute-form" class="group-settings-form">
+                        <div class="settings-field">
+                            <label class="settings-label">Üye</label>
+                            <select id="group-mute-member" class="message-input settings-input"></select>
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">İşlem</label>
+                            <select id="group-mute-action" class="message-input settings-input">
+                                <option value="mute">Sustur</option>
+                                <option value="unmute">Susturma Kaldır</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="settings-save-btn">Mute Uygula</button>
+                    </form>
+
+                    <form id="group-remove-form" class="group-settings-form">
+                        <div class="settings-field">
+                            <label class="settings-label">Üye</label>
+                            <select id="group-remove-member" class="message-input settings-input"></select>
+                        </div>
+                        <button type="submit" class="settings-close-btn danger-btn">Üye Çıkar</button>
+                    </form>
+
+                    <div class="group-member-list-wrap">
+                        <div class="group-member-list-title">Üyeler</div>
+                        <div id="group-member-list" class="group-member-list"></div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
