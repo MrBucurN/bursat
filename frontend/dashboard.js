@@ -16,6 +16,8 @@ let mevcutNickname = '';
 let secilenAvatar = '';
 let aktifSohbetToken = 0;
 const ilkSohbetMesajLimiti = 20;
+const sohbetYenilemeAraligiMs = 2000;
+const panelYenilemeAraligiMs = 10000;
 
 // DOM Elemanları
 const bursatContainer = document.getElementById('bursat-container');
@@ -579,6 +581,7 @@ chatForm.addEventListener('submit', async (e) => {
 
 // --- 7. ZAMANLAYICI MOTORU ---
 let yenilemeDongusuAktif = false;
+let panelYenilemeDongusuAktif = false;
 
 async function yenilemeDongusu() {
     if (yenilemeDongusuAktif) return;
@@ -590,8 +593,23 @@ async function yenilemeDongusu() {
         await mesajlariCanliGetir();
     } finally {
         yenilemeDongusuAktif = false;
-        setTimeout(yenilemeDongusu, 2000);
+        setTimeout(yenilemeDongusu, sohbetYenilemeAraligiMs);
     }
 }
 
+async function panelYenilemeDongusu() {
+    if (panelYenilemeDongusuAktif) return;
+
+    panelYenilemeDongusuAktif = true;
+
+    try {
+        await paneliGuncelle();
+    } finally {
+        panelYenilemeDongusuAktif = false;
+        setTimeout(panelYenilemeDongusu, panelYenilemeAraligiMs);
+    }
+}
+
+paneliGuncelle();
+panelYenilemeDongusu();
 yenilemeDongusu();
